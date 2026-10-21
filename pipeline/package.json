@@ -5,8 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "tsx src/index.ts",
-  "typecheck": "tsc --noEmit"
+    "dev": "tsx --env-file=.env src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
     "zod": "^4.6.7"
   }
 }
