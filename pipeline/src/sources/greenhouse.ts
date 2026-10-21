@@ -1,25 +1,34 @@
-// The shape of one job from Greenhouse. We only list the fields we use.
-export interface GreenhouseJob {
-  id: number;
-  title: string;
-  absolute_url: string;
-  updated_at: string;
-  location: { name: string };
-}
+import { z } from "zod";
+import { fetchJson } from "../lib/http.js";
+import type { Job } from "../types.js";
 
-interface GreenhouseResponse {
-  jobs: GreenhouseJob[];
-}
+// What Greenhouse sends. Zod checks this at RUNTIME.
+const GreenhouseJobSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  absolute_url: z.string(),
+  updated_at: z.string(),
+  first_published: z.string().nullish(), // nullish = may be missing or null
+  location: z.object({ name: z.string() }),
+});
 
-export async function fetchGreenhouseJobs(boardToken: string): Promise<GreenhouseJob[]> {
-  const url = `https://boards-api.greenhouse.io/v1/boards/${boardToken}/jobs`;
+const GreenhouseResponseSchema = z.object({
+  jobs: z.array(GreenhouseJobSchema),
+});
 
-  const res = await fetch(url);
+export async function fetchGreenhouseJobs(company: string): Promise<Job[]> {
+  const url = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs`;
+  const raw = await fetchJson(url, `greenhouse/${company}`);
+  const data = GreenhouseResponseSchema.parse(raw); // throws if shape is wrong
 
-  if (!res.ok) {
-    throw new Error(`Greenhouse "${boardToken}" failed: ${res.status} ${res.statusText}`);
-  }
-
-  const data = (await res.json()) as GreenhouseResponse;
-  return data.jobs;
+  return data.jobs.map((j): Job => ({
+    id: `greenhouse:${company}:${j.id}`,
+    source: "greenhouse",
+    company,
+    title: j.title,
+    location: j.location.name,
+    isRemote: /remote/i.test(j.location.name),
+    url: j.absolute_url,
+    postedAt: j.first_published ?? j.updated_at,
+  }));
 }
