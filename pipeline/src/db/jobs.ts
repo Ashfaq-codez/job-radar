@@ -26,3 +26,45 @@ export async function upsertJobs(
   const newIds = rows.filter((r) => r.is_new).map((r) => String(r.id));
   return { newIds, seenCount: rows.length - newIds.length };
 }
+
+export interface JobToScore {
+  id: string;
+  company: string;
+  title: string;
+  location: string;
+  description: string;
+}
+
+// Jobs never scored, with a description, roughly in India.
+// ILIKE is a rough first cut; filters.ts does the precise check.
+export async function getUnscoredJobs(): Promise<JobToScore[]> {
+  const rows = await sql`
+    SELECT id, company, title, location, description
+    FROM jobs
+    WHERE scored_at IS NULL
+      AND description <> ''
+      AND (location ILIKE '%bengaluru%' OR location ILIKE '%bangalore%' OR location ILIKE '%india%')
+    ORDER BY first_seen_at DESC
+  `;
+  return rows as JobToScore[];
+}
+
+export async function saveScore(id: string, score: number, details: string) {
+  await sql`
+    UPDATE jobs
+    SET fit_score = ${score}, fit_reasons = ${details}, scored_at = now()
+    WHERE id = ${id}
+  `;
+}
+
+// Best matches among jobs still open (seen in the last 3 days)
+export async function getTopMatches(limit: number) {
+  return sql`
+    SELECT company, title, location, url, fit_score, fit_reasons
+    FROM jobs
+    WHERE fit_score IS NOT NULL
+      AND last_seen_at > now() - interval '3 days'
+    ORDER BY fit_score DESC
+    LIMIT ${limit}
+  `;
+}

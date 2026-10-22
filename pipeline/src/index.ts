@@ -5,6 +5,7 @@ import { fetchAshbyJobs } from "./sources/ashby.js";
 import type { Job, Source } from "./types.js";
 import { upsertJobs } from "./db/jobs.js";
 import { passesRules } from "./filters.js";
+import { scoreNewJobs, printTopMatches } from "./scoring/run.js";
 
 // Look up the right fetcher for each source
 const fetchers: Record<Source, (company: string) => Promise<Job[]>> = {
@@ -55,3 +56,6 @@ if (newIndiaJobs.length === 0) {
     console.log(`  ${job.url}`);
   }
 }
+
+await scoreNewJobs();
+await printTopMatches();

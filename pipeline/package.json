@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
+    "openai": "^7.41.0",
     "zod": "^4.6.7"
   }
 }
