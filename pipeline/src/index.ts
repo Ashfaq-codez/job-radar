@@ -4,6 +4,7 @@ import { fetchLeverJobs } from "./sources/lever.js";
 import { fetchAshbyJobs } from "./sources/ashby.js";
 import type { Job, Source } from "./types.js";
 import { upsertJobs } from "./db/jobs.js";
+import { passesRules } from "./filters.js";
 
 // Look up the right fetcher for each source
 const fetchers: Record<Source, (company: string) => Promise<Job[]>> = {
@@ -39,10 +40,10 @@ const uniqueJobs = [...new Map(allJobs.map((job) => [job.id, job])).values()];
 const { newIds, seenCount } = await upsertJobs(uniqueJobs);
 console.log(`\n💾 Saved: ${newIds.length} new, ${seenCount} already seen`);
 
-const INDIA = /\b(bengaluru|bangalore|india)\b/i;
+
 const newSet = new Set(newIds);
 const newIndiaJobs = uniqueJobs.filter(
-  (job) => newSet.has(job.id) && INDIA.test(job.location)
+  (job) => newSet.has(job.id) && passesRules(job)
 );
 
 if (newIndiaJobs.length === 0) {

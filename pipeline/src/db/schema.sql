@@ -12,3 +12,9 @@ CREATE TABLE IF NOT EXISTS jobs (
 );
 
 CREATE INDEX IF NOT EXISTS jobs_first_seen_at_idx ON jobs (first_seen_at DESC);
+
+-- Phase 4: descriptions + scoring
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fit_score   integer;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fit_reasons text;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scored_at   timestamptz;

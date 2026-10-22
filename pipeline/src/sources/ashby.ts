@@ -6,6 +6,7 @@ const AshbyJobSchema = z.object({
   id: z.string(),
   title: z.string(),
   location: z.string(),
+  descriptionPlain: z.string().nullish(),
   isRemote: z.boolean().nullish(),
   jobUrl: z.string(),
   publishedAt: z.string().nullish(),
@@ -27,6 +28,7 @@ export async function fetchAshbyJobs(company: string): Promise<Job[]> {
     location: j.location,
     isRemote: j.isRemote ?? false,
     url: j.jobUrl,
+    description: j.descriptionPlain ?? "",
     postedAt: j.publishedAt ?? null,
   }));
 }

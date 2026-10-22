@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { fetchJson } from "../lib/http.js";
+import { htmlToText } from "../lib/text.js";
 import type { Job } from "../types.js";
 
 // What Greenhouse sends. Zod checks this at RUNTIME.
@@ -10,6 +11,7 @@ const GreenhouseJobSchema = z.object({
   updated_at: z.string(),
   first_published: z.string().nullish(), // nullish = may be missing or null
   location: z.object({ name: z.string() }),
+  content: z.string().nullish(),         // job description (escaped HTML)
 });
 
 const GreenhouseResponseSchema = z.object({
@@ -17,7 +19,8 @@ const GreenhouseResponseSchema = z.object({
 });
 
 export async function fetchGreenhouseJobs(company: string): Promise<Job[]> {
-  const url = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs`;
+  // ?content=true makes Greenhouse include each job's description
+  const url = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs?content=true`;
   const raw = await fetchJson(url, `greenhouse/${company}`);
   const data = GreenhouseResponseSchema.parse(raw); // throws if shape is wrong
 
@@ -29,6 +32,7 @@ export async function fetchGreenhouseJobs(company: string): Promise<Job[]> {
     location: j.location.name,
     isRemote: /remote/i.test(j.location.name),
     url: j.absolute_url,
+    description: htmlToText(j.content ?? ""),
     postedAt: j.first_published ?? j.updated_at,
   }));
 }

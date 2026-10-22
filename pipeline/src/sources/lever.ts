@@ -7,6 +7,7 @@ const LeverPostingSchema = z.object({
   text: z.string(),                       // Lever calls the title "text"
   hostedUrl: z.string(),
   workplaceType: z.string().optional(),
+   descriptionPlain: z.string().nullish(),
   createdAt: z.number().optional(),       // milliseconds since 1970
   categories: z.object({
     location: z.string().optional(),
@@ -27,6 +28,7 @@ export async function fetchLeverJobs(company: string): Promise<Job[]> {
     location: p.categories.location ?? "Unknown",
     isRemote: p.workplaceType === "remote",
     url: p.hostedUrl,
+    description: p.descriptionPlain ?? "",
     postedAt: p.createdAt ? new Date(p.createdAt).toISOString() : null,
   }));
 }

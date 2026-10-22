@@ -9,6 +9,7 @@ export interface Job {
   location: string;
   isRemote: boolean;
   url: string;
+  description: string;     // plain text, used for scoring
   postedAt: string | null; // ISO date, or null if the source doesn't say
 }
 
