@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { JobToNotify } from "../db/jobs.js";
-import { chunk, header, toEmbed } from "./format.js";
+import { chunk, header, isDiscordWebhook, toEmbed } from "./format.js";
 
 const job = (o: Partial<JobToNotify> = {}): JobToNotify => ({
   id: "x", company: "Acme", title: "SDE 1", location: "Bengaluru", url: "https://acme.com/j/1",
@@ -37,5 +37,19 @@ describe("toEmbed", () => {
 describe("chunk", () => {
   it("splits into groups of 10", () => {
     assert.deepEqual(chunk(Array.from({ length: 23 }, (_, i) => i)).map((c) => c.length), [10, 10, 3]);
+  });
+});
+
+describe("isDiscordWebhook", () => {
+  const id = "123456789012345678";
+  const token = "a".repeat(68);
+  it("accepts Discord webhook URLs", () => {
+    assert.ok(isDiscordWebhook(`https://discord.com/api/webhooks/${id}/${token}`));
+    assert.ok(isDiscordWebhook(`https://canary.discordapp.com/api/webhooks/${id}/${token}`));
+  });
+  it("rejects anything else", () => {
+    assert.ok(!isDiscordWebhook(`http://discord.com/api/webhooks/${id}/${token}`));
+    assert.ok(!isDiscordWebhook(`https://discord.com.evil.io/api/webhooks/${id}/${token}`));
+    assert.ok(!isDiscordWebhook(`https://169.254.169.254/latest/meta-data`));
   });
 });

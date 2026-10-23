@@ -1,30 +1,18 @@
 import { z } from "zod";
-import { getJobsToNotify, markNotified } from "../db/jobs.js";
-import { chunk, header, toEmbed } from "./format.js";
+import { getUserJobsToNotify, markUserNotified, type ActiveProfile } from "../db/users.js";
+import { chunk, header, isDiscordWebhook, toEmbed } from "./format.js";
 
-// Sends new strong matches to a Discord channel via a webhook (free).
-// The webhook URL is a secret: it's never logged, errors only show the status.
+// Sends each person's new strong matches to their Discord channel via a webhook (free).
+// Webhook URLs are secrets: they're never logged, errors only show the status.
 
-const MAX_PER_RUN = 20;
-const MinScore = z.coerce.number().int().min(0).max(100);
+const MAX_PER_RUN = 20; // per person
 const RateLimit = z.object({ retry_after: z.number().nonnegative() });
 
-function webhookUrl(): string | null {
-  const url = process.env.DISCORD_WEBHOOK_URL;
-  if (!url) {
-    console.log("Discord skipped (DISCORD_WEBHOOK_URL not set)");
-    return null;
-  }
-  return url;
-}
-
-function minScore(): number {
-  const raw = process.env.MIN_NOTIFY_SCORE;
-  if (!raw) return 70;
-  const parsed = MinScore.safeParse(raw);
-  if (parsed.success) return parsed.data;
-  console.log("MIN_NOTIFY_SCORE isn't a number from 0 to 100, using 70");
-  return 70;
+// A person's own webhook; the owner falls back to DISCORD_WEBHOOK_URL from the environment
+function webhookFor(p: ActiveProfile): string | null {
+  const owner = process.env.OWNER_EMAIL?.trim().toLowerCase();
+  const url = p.discord_webhook_url || (owner && p.email.toLowerCase() === owner ? process.env.DISCORD_WEBHOOK_URL : null);
+  return url && isDiscordWebhook(url) ? url : null;
 }
 
 // POST one message. Returns true on success. On 429 waits retry_after and retries once.
@@ -57,32 +45,43 @@ async function post(url: string, body: unknown, retried = false): Promise<boolea
   return false;
 }
 
-export async function notifyDiscord(): Promise<void> {
-  try {
-    const url = webhookUrl();
-    if (!url) return;
+export async function notifyDiscord(profiles: ActiveProfile[]): Promise<void> {
+  for (const [i, p] of profiles.entries()) {
+    const label = `user ${i + 1} of ${profiles.length}`;
+    try {
+      const url = webhookFor(p);
+      if (!url) continue; // no alerts set up
 
-    const jobs = await getJobsToNotify(minScore(), MAX_PER_RUN);
-    if (jobs.length === 0) return; // nothing new, send nothing
+      const jobs = await getUserJobsToNotify(p.user_id, p.min_notify_score, MAX_PER_RUN);
+      if (jobs.length === 0) continue; // nothing new, send nothing
 
-    let sent = 0;
-    for (const [i, group] of chunk(jobs).entries()) {
-      const ok = await post(url, {
-        ...(i === 0 ? { content: header(jobs) } : {}),
-        embeds: group.map(toEmbed),
-      });
-      if (!ok) continue; // left unmarked, so the next run retries it
-      await markNotified(group.map((j) => j.id));
-      sent += group.length;
+      let sent = 0;
+      for (const [c, group] of chunk(jobs).entries()) {
+        const ok = await post(url, {
+          ...(c === 0 ? { content: header(jobs) } : {}),
+          embeds: group.map(toEmbed),
+        });
+        if (!ok) continue; // left unmarked, so the next run retries it
+        await markUserNotified(p.user_id, group.map((j) => j.id));
+        sent += group.length;
+      }
+      console.log(`📣 Discord (${label}): sent ${sent} of ${jobs.length} new matches`);
+    } catch (err) {
+      console.log(`Discord notify failed (${label}): ${err instanceof Error ? err.name : "error"}`);
     }
-    console.log(`\n📣 Discord: sent ${sent} of ${jobs.length} new matches`);
-  } catch (err) {
-    console.log(`Discord notify failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
+// npm run notify:test → checks the owner's DISCORD_WEBHOOK_URL
 export async function sendTestMessage(): Promise<boolean> {
-  const url = webhookUrl();
-  if (!url) return false;
+  const url = process.env.DISCORD_WEBHOOK_URL;
+  if (!url) {
+    console.log("Discord skipped (DISCORD_WEBHOOK_URL not set)");
+    return false;
+  }
+  if (!isDiscordWebhook(url)) {
+    console.log("DISCORD_WEBHOOK_URL doesn't look like a Discord webhook (https://discord.com/api/webhooks/...)");
+    return false;
+  }
   return post(url, { content: "✅ job-radar is connected" });
 }

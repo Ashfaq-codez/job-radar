@@ -4,7 +4,7 @@ import { upsertJobs } from "./db/jobs.js";
 import { fetchers } from "./sources/index.js";
 import { mapWithLimit } from "./lib/pool.js";
 import { isIndia, passesRules } from "./filters.js";
-import { scoreNewJobs, printTopMatches } from "./scoring/run.js";
+import { matchAndScore } from "./scoring/run.js";
 import { notifyDiscord } from "./notify/discord.js";
 import type { CompanyTarget, Job } from "./types.js";
 
@@ -45,24 +45,22 @@ const indiaJobs = uniqueJobs.filter(isIndia);
 const { newIds, seenCount } = await upsertJobs(indiaJobs);
 console.log(`\n💾 Saved ${indiaJobs.length} India jobs: ${newIds.length} new, ${seenCount} already seen`);
 
-// ── 5. Show new jobs that pass the rules (India + entry level) ──
+// ── 5. Show new jobs that pass the rules (India + a known role family + not senior) ──
 const newSet = new Set(newIds);
 const newMatches = indiaJobs.filter((job) => newSet.has(job.id) && passesRules(job));
 
 if (newMatches.length === 0) {
-  console.log("No new entry-level India jobs since last run.");
+  console.log("No new early-career India jobs since last run.");
 } else {
-  console.log(`\n🆕 ${newMatches.length} new entry-level India jobs:\n`);
+  console.log(`\n🆕 ${newMatches.length} new early-career India jobs:\n`);
   for (const job of newMatches.slice(0, 15)) {
     console.log(`- [${job.source}] ${job.company} | ${job.title} | ${job.location}`);
     console.log(`  ${job.url}`);
   }
 }
 
-// ── 6. AI scoring + best matches ──
-await scoreNewJobs();
-// The AI's reasons mention resume details, so keep them out of public CI logs
-if (!process.env.CI) await printTopMatches();
+// ── 6. Per person: match open jobs to their profile, then AI-score the new matches ──
+const profiles = await matchAndScore();
 
-// ── 7. Send new strong matches to Discord ──
-await notifyDiscord();
+// ── 7. Send each person's new strong matches to their Discord ──
+await notifyDiscord(profiles);
