@@ -32,7 +32,7 @@ export async function scoreNewJobs(): Promise<void> {
         totalCost += r.value;
       } else {
         failed++;
-        console.log(`  ⚠️ ${r.reason}`);
+        console.log(`  ⚠️ ${process.env.CI ? shortError(r.reason) : r.reason}`);
       }
     }
   }
@@ -52,4 +52,11 @@ export async function printTopMatches(limit = 10): Promise<void> {
     if (fit.missing.length > 0) console.log(`   ✘ missing: ${fit.missing.join(", ")}`);
     console.log(`   ${row.url}\n`);
   }
+}
+
+// In public CI logs, never print a full error: a bad AI reply can echo resume details
+function shortError(err: unknown): string {
+  if (!(err instanceof Error)) return "scoring failed";
+  const status = "status" in err && typeof err.status === "number" ? ` (status ${err.status})` : "";
+  return `${err.name}${status}`;
 }

@@ -1,0 +1,46 @@
+name: Pipeline
+
+on:
+  schedule:
+    - cron: "17 2 * * *"   # 7:47 am IST
+    - cron: "17 14 * * *"  # 7:47 pm IST
+  workflow_dispatch:
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: pipeline
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: pipeline/package-lock.json
+
+      - run: npm ci
+
+      - name: Write resume from secret
+        env:
+          RESUME_MD: ${{ secrets.RESUME_MD }}
+        run: |
+          if [ -z "$RESUME_MD" ]; then echo "::error::RESUME_MD secret is not set"; exit 1; fi
+          mkdir -p data && printf '%s' "$RESUME_MD" > data/resume.md
+
+      - name: Fetch, score and notify
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: npm run dev

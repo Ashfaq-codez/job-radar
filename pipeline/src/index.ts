@@ -61,7 +61,8 @@ if (newMatches.length === 0) {
 
 // ── 6. AI scoring + best matches ──
 await scoreNewJobs();
-await printTopMatches();
+// The AI's reasons mention resume details, so keep them out of public CI logs
+if (!process.env.CI) await printTopMatches();
 
 // ── 7. Send new strong matches to Discord ──
 await notifyDiscord();

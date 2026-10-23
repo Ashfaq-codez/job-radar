@@ -5,9 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx --env-file=.env src/index.ts",
+    "dev": "tsx --env-file-if-exists=.env src/index.ts",
     "typecheck": "tsc --noEmit",
-    "discover": "tsx --env-file=.env src/discover/run.ts",
+    "discover": "tsx --env-file-if-exists=.env src/discover/run.ts",
     "test": "tsx --test src/classify.test.ts src/sources/careers.test.ts src/sources/workday.test.ts src/notify/format.test.ts",
     "notify:test": "tsx --env-file-if-exists=.env src/notify/test.ts",
     "reclassify": "tsx --env-file-if-exists=.env src/scripts/reclassify.ts",
