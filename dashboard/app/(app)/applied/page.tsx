@@ -1,16 +1,18 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { requireOnboardedUser } from "@/lib/session";
 import { getBoard, getJob } from "@/lib/jobs";
 import { first, hrefWith, type SP } from "@/lib/url";
-import { JobPanel } from "../components/job-panel";
-import { Kanban } from "../components/kanban";
-import { PageHeader } from "../components/ui";
+import { JobPanel } from "@/app/components/job-panel";
+import { Kanban } from "@/app/components/kanban";
+import { PageHeader } from "@/app/components/ui";
 
 async function Board({ searchParams }: { searchParams: Promise<SP> }) {
   await connection();
+  const user = await requireOnboardedUser();
   const sp = await searchParams;
   const jobId = first(sp, "job");
-  const [jobs, detail] = await Promise.all([getBoard(), jobId ? getJob(jobId) : Promise.resolve(null)]);
+  const [jobs, detail] = await Promise.all([getBoard(user.id), jobId ? getJob(user.id, jobId) : Promise.resolve(null)]);
   const openHref = (id: string) => hrefWith("/applied", sp, { job: id });
 
   return (

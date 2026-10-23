@@ -2,16 +2,18 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
 import { getCompanies } from "@/lib/jobs";
+import { requireOnboardedUser } from "@/lib/session";
 import { boardInfo, logoUrl } from "@/lib/logos";
 import { boardUrl, prettyCompany, timeAgo } from "@/lib/format";
-import { Empty, PageHeader, Score } from "../components/ui";
-import { CompanyLogo } from "../components/company-logo";
-import { AddCompany } from "../components/add-company";
-import { RemoveCompany } from "../components/remove-company";
+import { Empty, PageHeader, Score } from "@/app/components/ui";
+import { CompanyLogo } from "@/app/components/company-logo";
+import { AddCompany } from "@/app/components/add-company";
+import { RemoveCompany } from "@/app/components/remove-company";
 
 async function CompanyTable() {
   await connection();
-  const companies = await getCompanies();
+  const user = await requireOnboardedUser();
+  const companies = await getCompanies(user.id, user.isOwner);
 
   if (companies.length === 0) {
     return (
@@ -47,9 +49,9 @@ async function CompanyTable() {
                     {/* Badge sits under the name so long names keep their width on phones */}
                     <span className="flex min-w-0 flex-col items-start gap-1">
                       <span className="break-words">{name}</span>
-                      {c.added_by_you && (
+                      {c.removable && (
                         <span className="flex items-center gap-1">
-                          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Added by you</span>
+                          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">{c.added_by_you ? "Added by you" : "Added by a user"}</span>
                           {/* Phones: Remove lives here instead of its own column */}
                           <span className="sm:hidden"><RemoveCompany source={c.source} slug={c.slug} name={name} /></span>
                         </span>
@@ -96,7 +98,7 @@ async function CompanyTable() {
                 </td>
                 <td className="hidden px-3 sm:px-4 py-3 text-muted lg:table-cell">{timeAgo(c.last_checked_at)}</td>
                 <td className="hidden px-3 py-3 text-right sm:table-cell sm:px-4">
-                  {c.added_by_you && <RemoveCompany source={c.source} slug={c.slug} name={name} />}
+                  {c.removable && <RemoveCompany source={c.source} slug={c.slug} name={name} />}
                 </td>
               </tr>
             );

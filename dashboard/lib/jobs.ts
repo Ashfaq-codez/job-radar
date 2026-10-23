@@ -32,32 +32,36 @@ export interface JobDetail extends JobRow {
 
 export const PAGE_SIZE = 30;
 
+// Every query below is for ONE person: jobs are shared, but scores, statuses and notes
+// live in user_jobs, keyed by user_id. Callers pass the signed-in user's id from lib/session.ts.
+
 // Reusable SQL pieces. Functions, so every query gets its own copy.
 const columns = () => sql`
-  id, company, title, location, url, source, fit_score, fit_reasons,
-  status, employment, seniority, first_seen_at, status_changed_at, opened_at, min_years, experience_text`;
-// The roles this dashboard is for. Every list and count uses it, so senior roles never show up;
-// only the Applied board skips it, since it shows whatever you applied to.
-const isTarget = () => sql`category = 'developer' AND seniority IN ('fresher', 'entry')`;
-// The same jobs with a "target" flag, for joins that need every job but count only targets
-const jobsWithTarget = () => sql`(SELECT *, (${isTarget()}) AS target FROM jobs)`;
-const isOpen = () => sql`last_seen_at > now() - interval '3 days'`;
+  j.id, j.company, j.title, j.location, j.url, j.source, uj.fit_score, uj.fit_reasons,
+  uj.status, j.employment, j.seniority, j.first_seen_at, uj.status_changed_at, uj.opened_at,
+  j.min_years, j.experience_text`;
+// This person's jobs: the shared row joined with their own
+const mine = (userId: string) => sql`jobs j JOIN user_jobs uj ON uj.job_id = j.id AND uj.user_id = ${userId}`;
+// Jobs that fit their profile right now (set by the pipeline's matcher). Every list and count
+// uses it; only the Applied board skips it, since it shows whatever they applied to.
+const isTarget = () => sql`uj.matched`;
+const isOpen = () => sql`j.last_seen_at > now() - interval '3 days'`;
 const num = (v: unknown) => Number(v ?? 0);
 
-export async function getOverview() {
+export async function getOverview(userId: string) {
   const [jobs, pipeline, companies] = await Promise.all([
     sql`
       SELECT
-        count(*) FILTER (WHERE first_seen_at > now() - interval '24 hours') AS new_today,
-        count(*) FILTER (WHERE status = 'new' AND fit_score >= 80) AS strong,
-        count(*) FILTER (WHERE status = 'new') AS to_review,
-        count(*) FILTER (WHERE status = 'new' AND fit_score IS NULL) AS unscored
-      FROM jobs WHERE ${isTarget()} AND ${isOpen()}`,
+        count(*) FILTER (WHERE j.first_seen_at > now() - interval '24 hours') AS new_today,
+        count(*) FILTER (WHERE uj.status = 'new' AND uj.fit_score >= 80) AS strong,
+        count(*) FILTER (WHERE uj.status = 'new') AS to_review,
+        count(*) FILTER (WHERE uj.status = 'new' AND uj.fit_score IS NULL) AS unscored
+      FROM ${mine(userId)} WHERE ${isTarget()} AND ${isOpen()}`,
     sql`
       SELECT
-        count(*) FILTER (WHERE status IN ('applied', 'interviewing', 'offer')) AS active,
-        count(*) FILTER (WHERE status = 'interviewing') AS interviewing
-      FROM jobs`,
+        count(*) FILTER (WHERE uj.status IN ('applied', 'interviewing', 'offer')) AS active,
+        count(*) FILTER (WHERE uj.status = 'interviewing') AS interviewing
+      FROM ${mine(userId)}`,
     sql`SELECT count(*) FILTER (WHERE india_jobs > 0) AS tracked FROM companies`,
   ]);
 
@@ -72,16 +76,16 @@ export async function getOverview() {
   };
 }
 
-export async function getTopMatches(limit: number): Promise<JobRow[]> {
+export async function getTopMatches(userId: string, limit: number): Promise<JobRow[]> {
   const rows = await sql`
-    SELECT ${columns()} FROM jobs
-    WHERE ${isTarget()} AND ${isOpen()} AND status = 'new' AND fit_score IS NOT NULL
-    ORDER BY fit_score DESC, first_seen_at DESC
+    SELECT ${columns()} FROM ${mine(userId)}
+    WHERE ${isTarget()} AND ${isOpen()} AND uj.status = 'new' AND uj.fit_score IS NOT NULL
+    ORDER BY uj.fit_score DESC, j.first_seen_at DESC
     LIMIT ${limit}`;
   return rows as JobRow[];
 }
 
-export async function getJobs(f: JobFilters): Promise<{ rows: JobRow[]; total: number; counts: { review: number; saved: number } }> {
+export async function getJobs(userId: string, f: JobFilters): Promise<{ rows: JobRow[]; total: number; counts: { review: number; saved: number } }> {
   const like = `%${f.q}%`;
   const minScore = f.score === "any" ? 0 : Number(f.score);
 
@@ -90,25 +94,25 @@ export async function getJobs(f: JobFilters): Promise<{ rows: JobRow[]; total: n
   const days = f.posted === "any" ? 0 : Number(f.posted);
 
   const where = () => sql`
-    ${isTarget()} AND ${isOpen()} AND status = ${status}
-    AND (${pattern === null} OR location ~* ${pattern ?? ""} OR (${f.loc === "remote"} AND is_remote))
-    AND (${days === 0} OR first_seen_at > now() - make_interval(days => ${days}))
-    AND (${f.q === ""} OR title ILIKE ${like} OR company ILIKE ${like})
-    AND (${f.type === "all"} OR employment = ${f.type})
-    AND (${f.level === "all"} OR seniority = 'fresher')
-    AND (${f.score === "any"} OR fit_score >= ${minScore})`;
+    ${isTarget()} AND ${isOpen()} AND uj.status = ${status}
+    AND (${pattern === null} OR j.location ~* ${pattern ?? ""} OR (${f.loc === "remote"} AND j.is_remote))
+    AND (${days === 0} OR j.first_seen_at > now() - make_interval(days => ${days}))
+    AND (${f.q === ""} OR j.title ILIKE ${like} OR j.company ILIKE ${like})
+    AND (${f.type === "all"} OR j.employment = ${f.type})
+    AND (${f.level === "all"} OR j.seniority = 'fresher')
+    AND (${f.score === "any"} OR uj.fit_score >= ${minScore})`;
 
   const order =
     f.sort === "newest"
-      ? sql`first_seen_at DESC`
-      : sql`fit_score DESC NULLS LAST, first_seen_at DESC`;
+      ? sql`j.first_seen_at DESC`
+      : sql`uj.fit_score DESC NULLS LAST, j.first_seen_at DESC`;
 
   const [rows, count, tabs] = await Promise.all([
-    sql`SELECT ${columns()} FROM jobs WHERE ${where()}
+    sql`SELECT ${columns()} FROM ${mine(userId)} WHERE ${where()}
         ORDER BY ${order} LIMIT ${PAGE_SIZE} OFFSET ${(f.page - 1) * PAGE_SIZE}`,
-    sql`SELECT count(*) AS total FROM jobs WHERE ${where()}`,
-    sql`SELECT count(*) FILTER (WHERE status = 'new') AS review, count(*) FILTER (WHERE status = 'saved') AS saved
-        FROM jobs WHERE ${isTarget()} AND ${isOpen()}`,
+    sql`SELECT count(*) AS total FROM ${mine(userId)} WHERE ${where()}`,
+    sql`SELECT count(*) FILTER (WHERE uj.status = 'new') AS review, count(*) FILTER (WHERE uj.status = 'saved') AS saved
+        FROM ${mine(userId)} WHERE ${isTarget()} AND ${isOpen()}`,
   ]);
 
   return {
@@ -118,28 +122,31 @@ export async function getJobs(f: JobFilters): Promise<{ rows: JobRow[]; total: n
   };
 }
 
-export async function getJob(id: string): Promise<JobDetail | null> {
-  const rows = await sql`SELECT ${columns()}, description, description_html, notes FROM jobs WHERE id = ${id}`;
+// Only jobs in this person's user_jobs: someone else's (or an unmatched) job id returns null
+export async function getJob(userId: string, id: string): Promise<JobDetail | null> {
+  const rows = await sql`
+    SELECT ${columns()}, j.description, j.description_html, uj.notes
+    FROM ${mine(userId)} WHERE j.id = ${id}`;
   return (rows[0] as JobDetail | undefined) ?? null;
 }
 
-// Jobs you opened on the company site in the last week but haven't confirmed applying to
-export async function getOpenedPending(limit = 10): Promise<JobRow[]> {
+// Jobs opened on the company site in the last week but not confirmed as applied
+export async function getOpenedPending(userId: string, limit = 10): Promise<JobRow[]> {
   const rows = await sql`
-    SELECT ${columns()} FROM jobs
-    WHERE ${isTarget()} AND status IN ('new', 'saved') AND opened_at > now() - interval '7 days'
-    ORDER BY opened_at DESC
+    SELECT ${columns()} FROM ${mine(userId)}
+    WHERE ${isTarget()} AND uj.status IN ('new', 'saved') AND uj.opened_at > now() - interval '7 days'
+    ORDER BY uj.opened_at DESC
     LIMIT ${limit}`;
   return rows as JobRow[];
 }
 
 export type BoardRow = JobRow & { notes: string };
 
-export async function getBoard(): Promise<BoardRow[]> {
+export async function getBoard(userId: string): Promise<BoardRow[]> {
   const rows = await sql`
-    SELECT ${columns()}, notes FROM jobs
-    WHERE status IN ('saved', 'applied', 'interviewing', 'offer', 'rejected')
-    ORDER BY status_changed_at DESC NULLS LAST`;
+    SELECT ${columns()}, uj.notes FROM ${mine(userId)}
+    WHERE uj.status IN ('saved', 'applied', 'interviewing', 'offer', 'rejected')
+    ORDER BY uj.status_changed_at DESC NULLS LAST`;
   return rows as BoardRow[];
 }
 
@@ -152,20 +159,27 @@ export interface CompanyRow {
   last_checked_at: Date | string | null;
   name: string | null;
   added_by_you: boolean;
+  removable: boolean;
 }
 
-export async function getCompanies(): Promise<CompanyRow[]> {
+// Companies are shared; the role counts and best score are this person's
+export async function getCompanies(userId: string, isOwner: boolean): Promise<CompanyRow[]> {
   const rows = await sql`
-    SELECT c.source, c.slug, c.india_jobs, c.last_checked_at, c.name, c.added_by = 'dashboard' AS added_by_you,
-           count(j.id) FILTER (WHERE j.target AND j.last_seen_at > now() - interval '3 days') AS dev_roles,
-           max(j.fit_score) FILTER (WHERE j.target) AS best_score
+    SELECT c.source, c.slug, c.india_jobs, c.last_checked_at, c.name,
+           c.added_by_user = ${userId} AS added_by_you,
+           c.added_by = 'dashboard' AND (c.added_by_user = ${userId} OR ${isOwner}) AS removable,
+           count(m.job_id) FILTER (WHERE m.open) AS dev_roles,
+           max(m.fit_score) AS best_score
     FROM companies c
     -- careers jobs are stored under the employer's name, other sources under the board slug
-    LEFT JOIN ${jobsWithTarget()} j ON j.source = c.source
-      AND lower(j.company) = lower(CASE WHEN c.source = 'careers' THEN coalesce(c.name, c.slug) ELSE c.slug END)
+    LEFT JOIN (
+      SELECT j.source, j.company, uj.job_id, uj.fit_score, ${isOpen()} AS open
+      FROM ${mine(userId)} WHERE ${isTarget()}
+    ) m ON m.source = c.source
+      AND lower(m.company) = lower(CASE WHEN c.source = 'careers' THEN coalesce(c.name, c.slug) ELSE c.slug END)
     WHERE c.india_jobs > 0 OR c.added_by = 'dashboard'
-    GROUP BY c.source, c.slug, c.india_jobs, c.last_checked_at, c.name, c.added_by, c.added_at
-    ORDER BY (c.added_by = 'dashboard') DESC, c.added_at DESC NULLS LAST, dev_roles DESC, c.india_jobs DESC`;
+    GROUP BY c.source, c.slug, c.india_jobs, c.last_checked_at, c.name, c.added_by, c.added_by_user, c.added_at
+    ORDER BY (c.added_by_user = ${userId}) DESC NULLS LAST, c.added_at DESC NULLS LAST, dev_roles DESC, c.india_jobs DESC`;
 
   return rows.map((r) => ({
     source: String(r.source),
@@ -176,8 +190,10 @@ export async function getCompanies(): Promise<CompanyRow[]> {
     last_checked_at: r.last_checked_at,
     name: r.name === null ? null : String(r.name),
     added_by_you: Boolean(r.added_by_you),
+    removable: Boolean(r.removable),
   }));
 }
+
 // Skills worth tracking: the AI's "missing" notes are free text, so count jobs that mention each one
 const SKILLS: [label: string, pattern: RegExp][] = [
   ["Java", /\bjava\b(?!script)/i], ["Python", /python/i], ["Go", /\bgo(lang)?\b/i], ["C++", /c\+\+/i],
@@ -188,24 +204,25 @@ const SKILLS: [label: string, pattern: RegExp][] = [
   ["Mobile", /android|ios|kotlin|swift|flutter|react native/i], ["GraphQL", /graphql/i], ["Linux / shell", /linux|unix|shell/i],
 ];
 
-export async function getInsights() {
+export async function getInsights(userId: string) {
   const [perDay, buckets, companies, missing] = await Promise.all([
     sql`
       SELECT to_char(d, 'YYYY-MM-DD') AS day, count(j.id) AS n
       FROM generate_series(current_date - 13, current_date, interval '1 day') d
-      LEFT JOIN ${jobsWithTarget()} j ON j.first_seen_at::date = d::date AND j.target
+      LEFT JOIN (SELECT j.id, j.first_seen_at FROM ${mine(userId)} WHERE ${isTarget()}) j
+        ON j.first_seen_at::date = d::date
       GROUP BY d ORDER BY d`,
     sql`
-      SELECT least(floor(fit_score / 10), 9) AS b, count(*) AS n
-      FROM jobs WHERE ${isTarget()} AND ${isOpen()} AND fit_score IS NOT NULL
+      SELECT least(floor(uj.fit_score / 10), 9) AS b, count(*) AS n
+      FROM ${mine(userId)} WHERE ${isTarget()} AND ${isOpen()} AND uj.fit_score IS NOT NULL
       GROUP BY 1`,
     sql`
-      SELECT company, count(*) AS n FROM jobs
-      WHERE ${isTarget()} AND ${isOpen()} AND status = 'new'
+      SELECT j.company, count(*) AS n FROM ${mine(userId)}
+      WHERE ${isTarget()} AND ${isOpen()} AND uj.status = 'new'
       GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 8`,
     sql`
-      SELECT fit_reasons FROM jobs
-      WHERE ${isTarget()} AND ${isOpen()} AND fit_reasons IS NOT NULL`,
+      SELECT uj.fit_reasons FROM ${mine(userId)}
+      WHERE ${isTarget()} AND ${isOpen()} AND uj.fit_reasons IS NOT NULL`,
   ]);
 
   const byBucket = new Map(buckets.map((r) => [num(r.b), num(r.n)]));
@@ -232,17 +249,17 @@ export async function getInsights() {
 
 // Sidebar momentum: applications sent today (India time) and this week, plus strong matches waiting.
 // "Sent" = moved into applied/interviewing/offer, judged by when the status last changed.
-export async function getMomentum() {
+export async function getMomentum(userId: string) {
   const [r] = await sql`
     SELECT
       count(*) FILTER (
-        WHERE status IN ('applied', 'interviewing', 'offer')
-          AND status_changed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')
+        WHERE uj.status IN ('applied', 'interviewing', 'offer')
+          AND uj.status_changed_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata')
       ) AS today,
       count(*) FILTER (
-        WHERE status IN ('applied', 'interviewing', 'offer') AND status_changed_at > now() - interval '7 days'
+        WHERE uj.status IN ('applied', 'interviewing', 'offer') AND uj.status_changed_at > now() - interval '7 days'
       ) AS week,
-      count(*) FILTER (WHERE status = 'new' AND fit_score >= 80 AND ${isTarget()} AND ${isOpen()}) AS strong
-    FROM jobs`;
+      count(*) FILTER (WHERE uj.status = 'new' AND uj.fit_score >= 80 AND ${isTarget()} AND ${isOpen()}) AS strong
+    FROM ${mine(userId)}`;
   return { today: num(r?.today), week: num(r?.week), strong: num(r?.strong) };
 }
