@@ -1,23 +1,25 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { requireOnboardedUser } from "@/lib/session";
 import { getJob, getJobs, PAGE_SIZE } from "@/lib/jobs";
 import { parseFilters } from "@/lib/filters";
 import { first, hrefWith, type SP } from "@/lib/url";
-import { JobFiltersBar, JobTabs } from "../components/job-filters";
-import { JobGrid } from "../components/job-grid";
-import { JobPanel } from "../components/job-panel";
-import { Pagination } from "../components/pagination";
-import { Empty, Loading, PageHeader } from "../components/ui";
+import { JobFiltersBar, JobTabs } from "@/app/components/job-filters";
+import { JobGrid } from "@/app/components/job-grid";
+import { JobPanel } from "@/app/components/job-panel";
+import { Pagination } from "@/app/components/pagination";
+import { Empty, Loading, PageHeader } from "@/app/components/ui";
 
 async function JobsContent({ searchParams }: { searchParams: Promise<SP> }) {
   await connection();
+  const user = await requireOnboardedUser();
   const sp = await searchParams;
   const f = parseFilters(sp);
   const jobId = first(sp, "job");
 
   const [{ rows, total, counts }, detail] = await Promise.all([
-    getJobs(f),
-    jobId ? getJob(jobId) : Promise.resolve(null),
+    getJobs(user.id, f),
+    jobId ? getJob(user.id, jobId) : Promise.resolve(null),
   ]);
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));

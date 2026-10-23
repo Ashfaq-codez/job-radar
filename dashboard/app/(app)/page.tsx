@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
+import { requireOnboardedUser } from "@/lib/session";
 import { getBoard, getInsights, getOpenedPending, getOverview, getTopMatches } from "@/lib/jobs";
 import { prettyCompany, scoreColor, timeAgo } from "@/lib/format";
-import { BarList, ColumnChart } from "./components/charts";
-import { JobCard } from "./components/job-card";
-import { Empty, StatusPill } from "./components/ui";
-import { CompanyLogo } from "./components/company-logo";
-import { DidYouApply } from "./components/apply-confirm";
+import { BarList, ColumnChart } from "@/app/components/charts";
+import { JobCard } from "@/app/components/job-card";
+import { Empty, StatusPill } from "@/app/components/ui";
+import { CompanyLogo } from "@/app/components/company-logo";
+import { DidYouApply } from "@/app/components/apply-confirm";
 
 function HeroStat({ label, value, href }: { label: string; value: number; href: string }) {
   return (
@@ -46,7 +47,10 @@ const dayFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", t
 
 async function OverviewContent() {
   await connection();
-  const [o, top, board, ins, opened] = await Promise.all([getOverview(), getTopMatches(6), getBoard(), getInsights(), getOpenedPending()]);
+  const user = await requireOnboardedUser();
+  const [o, top, board, ins, opened] = await Promise.all([
+    getOverview(user.id), getTopMatches(user.id, 6), getBoard(user.id), getInsights(user.id), getOpenedPending(user.id),
+  ]);
   const inProgress = board.filter((j) => j.status !== "rejected" && j.status !== "saved").slice(0, 5);
   const newThisWeek = ins.perDay.slice(-7).reduce((s, d) => s + d.n, 0);
 
@@ -150,7 +154,7 @@ async function OverviewContent() {
               ))}
             </ul>
           ) : (
-            <Empty title="No scored roles yet">Run the pipeline to fetch and score jobs.</Empty>
+            <Empty title="No scored roles yet">Your matches appear after the next pipeline run (it runs twice a day).</Empty>
           )}
         </section>
 

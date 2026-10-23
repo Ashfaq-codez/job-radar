@@ -31,16 +31,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Write resume from secret
-        env:
-          RESUME_MD: ${{ secrets.RESUME_MD }}
-        run: |
-          if [ -z "$RESUME_MD" ]; then echo "::error::RESUME_MD secret is not set"; exit 1; fi
-          mkdir -p data && printf '%s' "$RESUME_MD" > data/resume.md
-
-      - name: Fetch, score and notify
+      - name: Fetch, match, score and notify
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          MAX_SCORES_PER_RUN: ${{ vars.MAX_SCORES_PER_RUN }}
         run: npm run dev

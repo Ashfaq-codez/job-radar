@@ -1,60 +1,80 @@
-import { getUnscoredJobs, saveScore, getTopMatches } from "../db/jobs.js";
-import { scoreJob, FitSchema } from "./score.js";
+import { getActiveProfiles, getOpenJobs, getUnscoredForUser, saveUserScore, syncMatches, type ActiveProfile } from "../db/users.js";
+import { matchesProfile } from "../match.js";
+import { describePreferences, scoreJob } from "./score.js";
 
-const MAX_PER_RUN = 300; // spending cap per run (~$0.03 on nano)
-const BATCH_SIZE = 5;   // jobs scored at the same time
+const MAX_PER_USER = 150; // per person per run
+const BATCH_SIZE = 5;     // jobs scored at the same time
 
-export async function scoreNewJobs(): Promise<void> {
-  const candidates = (await getUnscoredJobs()).slice(0, MAX_PER_RUN);
+// Overall spending cap per run (~$0.04 at 400 on nano). Set MAX_SCORES_PER_RUN to change it.
+function overallCap(): number {
+  const raw = process.env.MAX_SCORES_PER_RUN?.trim(); // empty when the GitHub variable isn't set
+  const n = raw ? Number(raw) : 400;
+  return Number.isInteger(n) && n >= 0 ? n : 400;
+}
 
-  if (candidates.length === 0) {
-    console.log("\n🤖 Nothing new to score.");
-    return;
+// Logs say "user 2 of 3", never names, emails or resume text (CI logs are public)
+const who = (i: number, total: number) => `user ${i + 1} of ${total}`;
+
+// For each onboarded person: refresh which open jobs fit their profile, then score new ones
+export async function matchAndScore(): Promise<ActiveProfile[]> {
+  const profiles = await getActiveProfiles();
+  if (profiles.length === 0) {
+    console.log("\n👤 No onboarded users yet, nothing to match or score.");
+    return profiles;
   }
 
-  console.log(`\n🤖 Scoring ${candidates.length} jobs with AI...`);
+  const jobs = await getOpenJobs();
+  console.log(`\n👤 Matching ${jobs.length} open jobs for ${profiles.length} users...`);
+  for (const [i, p] of profiles.entries()) {
+    const ids = jobs.filter((j) => matchesProfile(j, p)).map((j) => j.id);
+    const { added } = await syncMatches(p.user_id, ids);
+    console.log(`  ${who(i, profiles.length)}: ${ids.length} matching, ${added} new`);
+  }
+
+  let budget = overallCap();
   let totalCost = 0;
+  let scored = 0;
   let failed = 0;
 
-  for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
-    const batch = candidates.slice(i, i + BATCH_SIZE);
+  for (const [i, p] of profiles.entries()) {
+    // Share what's left fairly between the people still to go
+    const allowance = Math.min(MAX_PER_USER, Math.ceil(budget / (profiles.length - i)));
+    const candidates = await getUnscoredForUser(p.user_id, allowance);
+    if (candidates.length === 0) continue;
+    budget -= candidates.length;
 
-    const results = await Promise.allSettled(
-      batch.map(async (job) => {
-        const { fit, cost } = await scoreJob(job);
-        await saveScore(job.id, fit.score, JSON.stringify(fit));
-        return cost;
-      })
-    );
+    console.log(`\n🤖 Scoring ${candidates.length} jobs for ${who(i, profiles.length)}...`);
+    const candidate = { resume: p.resume_text, preferences: describePreferences(p) };
 
-    for (const r of results) {
-      if (r.status === "fulfilled") {
-        totalCost += r.value;
-      } else {
-        failed++;
-        console.log(`  ⚠️ ${process.env.CI ? shortError(r.reason) : r.reason}`);
+    for (let b = 0; b < candidates.length; b += BATCH_SIZE) {
+      const results = await Promise.allSettled(
+        candidates.slice(b, b + BATCH_SIZE).map(async (job) => {
+          const { fit, cost } = await scoreJob(job, candidate);
+          await saveUserScore(p.user_id, job.id, fit.score, JSON.stringify(fit));
+          return cost;
+        })
+      );
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          totalCost += r.value;
+          scored++;
+        } else {
+          failed++;
+          console.log(`  ⚠️ ${shortError(r.reason)}`);
+        }
       }
     }
   }
 
-  console.log(`🤖 Done. Cost this run: $${totalCost.toFixed(4)}${failed ? `, ${failed} failed` : ""}`);
+  console.log(
+    scored + failed === 0
+      ? "\n🤖 Nothing new to score."
+      : `🤖 Done. Scored ${scored}. Cost this run: $${totalCost.toFixed(4)}${failed ? `, ${failed} failed` : ""}`
+  );
+  return profiles;
 }
 
-export async function printTopMatches(limit = 10): Promise<void> {
-  const rows = await getTopMatches(limit);
-  if (rows.length === 0) return;
-
-  console.log(`\n🏆 Top matches:\n`);
-  for (const row of rows) {
-    const fit = FitSchema.parse(JSON.parse(row.fit_reasons)); // validate what we read back
-    console.log(`${row.fit_score} [${fit.verdict}] ${row.company} | ${row.title} | ${row.location}`);
-    console.log(`   ✔ ${fit.reasons.join(" · ")}`);
-    if (fit.missing.length > 0) console.log(`   ✘ missing: ${fit.missing.join(", ")}`);
-    console.log(`   ${row.url}\n`);
-  }
-}
-
-// In public CI logs, never print a full error: a bad AI reply can echo resume details
+// Never print a full error: a bad AI reply can echo resume details, and logs may be public
 function shortError(err: unknown): string {
   if (!(err instanceof Error)) return "scoring failed";
   const status = "status" in err && typeof err.status === "number" ? ` (status ${err.status})` : "";

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { getMomentum } from "@/lib/jobs";
+import { getCurrentUser } from "@/lib/session";
 
 const DAILY_GOAL = 3;
 
@@ -26,7 +27,9 @@ function SidebarCard({ children, className = "" }: { children: React.ReactNode; 
 }
 
 async function DailyGoal() {
-  const m = await getMomentum();
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const m = await getMomentum(user.id);
   const done = Math.min(m.today, DAILY_GOAL);
   const message =
     m.today >= DAILY_GOAL ? "Goal smashed! 🎉 Anything more is a bonus." : m.today > 0 ? "Nice start. Keep the momentum!" : "Small steps win. Start with one. 🌱";

@@ -18,6 +18,10 @@ export type Embed = {
   fields: { name: string; value: string; inline: boolean }[];
 };
 
+// Only real Discord webhook URLs, so a saved value can't make the pipeline call anything else
+const WEBHOOK = /^https:\/\/(?:(?:ptb|canary)\.)?discord(?:app)?\.com\/api\/webhooks\/\d{5,30}\/[\w-]{20,200}$/;
+export const isDiscordWebhook = (url: string) => WEBHOOK.test(url.trim());
+
 const cut = (s: string, max: number) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
 
 function firstReason(raw: string | null): string | null {

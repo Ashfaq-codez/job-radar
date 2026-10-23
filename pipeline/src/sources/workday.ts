@@ -130,10 +130,10 @@ export async function fetchWorkdayJobs(slug: string, opts: { lite?: boolean } = 
   });
   if (opts.lite) return jobs;
 
-  // 3. Descriptions only for entry-level developer roles, the ones that get scored
+  // 3. Descriptions only for roles someone might want (any role family, not senior)
   const wanted = (j: Job) => {
     const c = classify(j.title);
-    return c.category === "developer" && c.seniority !== "senior";
+    return c.seniority !== "senior" && (c.roleFamily !== "other" || /\b(trainee|graduate|analyst|associate)\b/i.test(j.title));
   };
   const detailed = await mapWithLimit(jobs, 4, async (j) => {
     if (!wanted(j)) return j;

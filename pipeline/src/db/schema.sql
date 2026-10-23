@@ -66,3 +66,123 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS experience_text text;
 
 -- When "Apply on company site" was clicked, so the dashboard can ask "Did you apply?"
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS opened_at timestamptz;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Multi-user (branch multi-user). Run this whole block once, top to bottom.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Better Auth core tables (user, session, account, verification), from its
+-- built-in schema for Postgres. Column names are camelCase, so they're quoted.
+CREATE TABLE IF NOT EXISTS "user" (
+  "id"            text PRIMARY KEY,
+  "name"          text NOT NULL,
+  "email"         text NOT NULL UNIQUE,
+  "emailVerified" boolean NOT NULL,
+  "image"         text,
+  "createdAt"     timestamptz NOT NULL DEFAULT now(),
+  "updatedAt"     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS "session" (
+  "id"        text PRIMARY KEY,
+  "expiresAt" timestamptz NOT NULL,
+  "token"     text NOT NULL UNIQUE,
+  "createdAt" timestamptz NOT NULL DEFAULT now(),
+  "updatedAt" timestamptz NOT NULL,
+  "ipAddress" text,
+  "userAgent" text,
+  "userId"    text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS session_user_id_idx ON "session" ("userId");
+
+CREATE TABLE IF NOT EXISTS "account" (
+  "id"                    text PRIMARY KEY,
+  "accountId"             text NOT NULL,
+  "providerId"            text NOT NULL,
+  "userId"                text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+  "accessToken"           text,
+  "refreshToken"          text,
+  "idToken"               text,
+  "accessTokenExpiresAt"  timestamptz,
+  "refreshTokenExpiresAt" timestamptz,
+  "scope"                 text,
+  "password"              text,
+  "createdAt"             timestamptz NOT NULL DEFAULT now(),
+  "updatedAt"             timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS account_user_id_idx ON "account" ("userId");
+
+CREATE TABLE IF NOT EXISTS "verification" (
+  "id"         text PRIMARY KEY,
+  "identifier" text NOT NULL,
+  "value"      text NOT NULL,
+  "expiresAt"  timestamptz NOT NULL,
+  "createdAt"  timestamptz NOT NULL DEFAULT now(),
+  "updatedAt"  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS verification_identifier_idx ON "verification" ("identifier");
+
+-- Invite-only: only these emails (plus OWNER_EMAIL) can sign in. Stored lowercase.
+CREATE TABLE IF NOT EXISTS invites (
+  email      text PRIMARY KEY CHECK (email = lower(email)),
+  invited_at timestamptz NOT NULL DEFAULT now(),
+  invited_by text
+);
+
+-- One row per person: resume text + what they're looking for
+CREATE TABLE IF NOT EXISTS profiles (
+  user_id             text PRIMARY KEY REFERENCES "user" ("id") ON DELETE CASCADE,
+  resume_text         text,
+  resume_updated_at   timestamptz,
+  role_families       text[] NOT NULL DEFAULT '{}',
+  extra_titles        text[] NOT NULL DEFAULT '{}',
+  experience_level    text,           -- 'fresher' | 'lt1' | '1-2' | '2-3' | '3plus'
+  max_min_years       integer NOT NULL DEFAULT 1,
+  job_types           text[] NOT NULL DEFAULT '{internship,full_time}',
+  locations           text[] NOT NULL DEFAULT '{}',
+  open_to_relocate    boolean NOT NULL DEFAULT false,
+  work_modes          text[] NOT NULL DEFAULT '{}',
+  skills              text[] NOT NULL DEFAULT '{}',
+  avoid_keywords      text[] NOT NULL DEFAULT '{}',
+  avoid_companies     text[] NOT NULL DEFAULT '{}',
+  company_types       text[] NOT NULL DEFAULT '{}',
+  grad_year           integer,
+  notice_period       text,
+  min_salary_lpa      numeric,
+  discord_webhook_url text,
+  min_notify_score    integer NOT NULL DEFAULT 70,
+  ai_consent_at       timestamptz,
+  onboarded_at        timestamptz,
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+
+-- Per-person view of a shared job: match, AI score, and application tracking.
+-- (These used to be columns on jobs; the old ones stay until the migration is verified.)
+CREATE TABLE IF NOT EXISTS user_jobs (
+  user_id           text NOT NULL REFERENCES "user" ("id") ON DELETE CASCADE,
+  job_id            text NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+  matched           boolean NOT NULL DEFAULT true,  -- fits the person's current profile
+  fit_score         integer,
+  fit_reasons       text,
+  scored_at         timestamptz,
+  status            text NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new', 'saved', 'applied', 'interviewing', 'offer', 'rejected', 'hidden')),
+  status_changed_at timestamptz,
+  opened_at         timestamptz,
+  notified_at       timestamptz,
+  notes             text NOT NULL DEFAULT '',
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, job_id)
+);
+CREATE INDEX IF NOT EXISTS user_jobs_review_idx  ON user_jobs (user_id, status, fit_score DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS user_jobs_unscored_idx ON user_jobs (user_id) WHERE scored_at IS NULL AND matched;
+CREATE INDEX IF NOT EXISTS user_jobs_notify_idx  ON user_jobs (user_id, fit_score DESC) WHERE notified_at IS NULL;
+CREATE INDEX IF NOT EXISTS user_jobs_opened_idx  ON user_jobs (user_id, opened_at DESC) WHERE opened_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS user_jobs_job_idx     ON user_jobs (job_id);
+
+-- Shared job labels: which role family a title belongs to
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS role_family text;
+CREATE INDEX IF NOT EXISTS jobs_open_family_idx ON jobs (last_seen_at DESC, role_family);
+
+-- Companies stay shared; remember which person added one from the dashboard
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS added_by_user text REFERENCES "user" ("id") ON DELETE SET NULL;
