@@ -1,11 +1,17 @@
 export type Category = "developer" | "other";
 export type Employment = "internship" | "full_time";
 export type Seniority = "fresher" | "entry" | "senior";
+export const ROLE_FAMILIES = [
+  "software_dev", "data_analyst", "data_scientist", "data_engineer",
+  "ml_ai", "business_analyst", "qa_testing", "devops_cloud",
+] as const;
+export type RoleFamily = (typeof ROLE_FAMILIES)[number] | "other";
 
 export interface Classification {
   category: Category;
   employment: Employment;
   seniority: Seniority;
+  roleFamily: RoleFamily;
   minYears: number | null;       // lowest years of experience the description asks for
   experienceText: string | null; // the phrase it came from, e.g. "0-2 years"
 }
@@ -37,6 +43,70 @@ const FRESHER =
 // Checked BEFORE fresher, so "Senior Associate" counts as senior
 const TOO_SENIOR =
   /\b(senior|sr\.?|staff|principal|lead|manager|director|head|architect|vp|ii|iii|iv)\b|\b(sde|swe)[\s-]?[23]\b/i;
+
+// ── Role families ──
+// Checked in order: the more specific families first, so "Data Engineer" isn't software_dev
+// and "SDET" is qa_testing. Analyst titles in sales/finance/security are "other" on purpose:
+// "Sales Analyst", "Financial Analyst", "Credit Analyst", "SOC Analyst" aren't data or BA roles.
+const FAMILY_TITLES: [RoleFamily, RegExp][] = [
+  ["qa_testing", /\b(qa|quality assurance|sdet|tester|testing|test engineer|test automation|automation test(ing|er)?|software engineer in test)\b/i],
+  ["devops_cloud", /\b(devops|dev ops|sre|site reliability|cloud engineer|cloud ops|cloud support|platform engineer|infrastructure engineer|devsecops|kubernetes|aws engineer|azure engineer)\b/i],
+  ["data_engineer", /\b(data engineer(ing)?|etl|big data|data platform|analytics engineer|data pipeline|data warehouse)\b/i],
+  ["ml_ai", /\b(machine learning|ml engineer|mlops|ai engineer|ai\/ml|ml\/ai|deep learning|nlp|computer vision|llm|gen ?ai|generative ai|applied scientist|ai developer|ai research)\b/i],
+  ["data_scientist", /\b(data scientist|data science)\b/i],
+  ["data_analyst", /\b(data analyst|data analytics|bi analyst|bi developer|business intelligence|mis (analyst|executive)|mis\b|reporting analyst|analytics (intern|associate|analyst|trainee)|product analyst|power bi|tableau|insights analyst)\b/i],
+  ["business_analyst", /\b(business analyst|business systems analyst|functional analyst|business analysis)\b/i],
+];
+
+// Analyst titles that are never data/BA roles, even with a family word nearby
+const NOT_DATA_ANALYST = /\b(sales|financial|finance|credit|security|soc|cyber|risk|equity|investment|research analyst|kyc|aml|fraud|tax|audit)\b/i;
+
+// Strong data words keep "Data Analyst, Finance" a data role
+const DATA_WORDS = /\b(data|bi|mis|business intelligence|power bi|tableau)\b/i;
+// Non-tech engineering, never placed from the description
+const NOT_TECH = /\b(mechanical|electrical|civil|hardware|asic|rtl|analog|vlsi|silicon|manufacturing|structural|designer|product manager|program manager|project manager|consultant|sales|marketing)\b/i;
+
+// A title too vague to place ("Graduate Trainee", "Associate", "Analyst"): read the description
+const GENERIC_TITLE = /\b(trainee|graduate|intern|internship|associate|analyst|engineer|developer|fresher)\b/i;
+const FAMILY_HINTS: [RoleFamily, RegExp][] = [
+  ["data_analyst", /\b(sql|excel|power bi|tableau|dashboards?|reporting|data analysis)\b/gi],
+  ["data_scientist", /\b(statistic(s|al)|predictive model(s|ling)?|data science|hypothesis)\b/gi],
+  ["data_engineer", /\b(etl|spark|airflow|data pipelines?|data warehouse|dbt)\b/gi],
+  ["ml_ai", /\b(machine learning|deep learning|pytorch|tensorflow|llms?|nlp)\b/gi],
+  ["qa_testing", /\b(test cases|selenium|manual testing|test automation|regression testing)\b/gi],
+  ["devops_cloud", /\b(ci\/cd|terraform|kubernetes|docker|jenkins|aws|azure|gcp)\b/gi],
+  ["business_analyst", /\b(requirements gathering|brd|user stories|stakeholders?|process mapping)\b/gi],
+  ["software_dev", /\b(java|javascript|typescript|react|node\.?js|python|golang|spring boot|rest apis?|backend|frontend)\b/gi],
+];
+const MIN_HINTS = 3; // need a few mentions before trusting the description
+
+function familyFromDescription(description: string): RoleFamily {
+  let best: RoleFamily = "other";
+  let bestHits = MIN_HINTS - 1;
+  for (const [family, re] of FAMILY_HINTS) {
+    const hits = description.match(re)?.length ?? 0;
+    if (hits > bestHits) [best, bestHits] = [family, hits];
+  }
+  return best;
+}
+
+export function roleFamily(title: string, description = "", isDev = false): RoleFamily {
+  if (ALWAYS_OUT.test(title)) return "other";
+  for (const [family, re] of FAMILY_TITLES) {
+    if (!re.test(title)) continue;
+    if (family === "data_analyst" && NOT_DATA_ANALYST.test(title) && !DATA_WORDS.test(title)) return "other";
+    if (family === "business_analyst" && NOT_DATA_ANALYST.test(title)) return "other";
+    return family;
+  }
+  if (/\banalyst\b/i.test(title) && NOT_DATA_ANALYST.test(title)) return "other";
+  if (isDev) return "software_dev";
+  return description && GENERIC_TITLE.test(title) && !NOT_TECH.test(title)
+    ? familyFromDescription(description)
+    : "other";
+}
+
+// Senior words in the title alone (used for matching, where years are checked separately)
+export const isSeniorTitle = (title: string) => TOO_SENIOR.test(title);
 
 // ── Experience from the job description ──
 const UNIT = String.raw`(?:years?|yrs?)\b`;
@@ -93,6 +163,7 @@ export function classify(title: string, description = ""): Classification {
     category: isDev ? "developer" : "other",
     employment: INTERN.test(title) ? "internship" : "full_time",
     seniority,
+    roleFamily: roleFamily(title, description, isDev),
     minYears: exp?.minYears ?? null,
     experienceText: exp?.text ?? null,
   };

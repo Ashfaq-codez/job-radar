@@ -12,9 +12,9 @@ const updates = rows.map((r) => ({ id: r.id, ...classify(r.title, r.description 
 await sql`
   UPDATE jobs AS j
   SET category = u.category, employment = u.employment, seniority = u.seniority,
-      min_years = u."minYears", experience_text = u."experienceText"
+      min_years = u."minYears", experience_text = u."experienceText", role_family = u."roleFamily"
   FROM jsonb_to_recordset(${JSON.stringify(updates)}::jsonb)
-       AS u(id text, category text, employment text, seniority text, "minYears" integer, "experienceText" text)
+       AS u(id text, category text, employment text, seniority text, "minYears" integer, "experienceText" text, "roleFamily" text)
   WHERE j.id = u.id
 `;
 
@@ -42,7 +42,7 @@ console.log(`  other changes:   ${other.length ? other.join(", ") : 0}\n`);
 
 console.table(
   await sql`
-    SELECT category, employment, seniority, count(*)::int AS jobs
+    SELECT role_family, employment, seniority, count(*)::int AS jobs
     FROM jobs GROUP BY 1, 2, 3 ORDER BY jobs DESC
   `
 );
