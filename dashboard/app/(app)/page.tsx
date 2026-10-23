@@ -154,7 +154,7 @@ async function OverviewContent() {
               ))}
             </ul>
           ) : (
-            <Empty title="No scored roles yet">Run the pipeline to fetch and score jobs.</Empty>
+            <Empty title="No scored roles yet">Your matches appear after the next pipeline run (it runs twice a day).</Empty>
           )}
         </section>
 

@@ -22,7 +22,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 async function SignInContent({ searchParams }: { searchParams: Promise<SP> }) {
   if (await getCurrentUser()) redirect("/");
-  const error = first(await searchParams, "error");
+  const sp = await searchParams;
+  const error = first(sp, "error");
+  const deleted = first(sp, "deleted") === "1";
 
   if (error === "NOT_INVITED") {
     return (
@@ -40,6 +42,11 @@ async function SignInContent({ searchParams }: { searchParams: Promise<SP> }) {
     <Shell>
       <h1 className="mt-6 text-lg font-bold">Your early-career job radar</h1>
       <p className="mt-2 text-sm leading-relaxed text-muted">Jobs in India matched to your resume, scored by AI, with alerts when a strong one lands.</p>
+      {deleted && (
+        <p role="status" className="mt-4 rounded-xl bg-accent-soft px-3 py-2 text-sm text-accent">
+          Your account and data were deleted.
+        </p>
+      )}
       {error && (
         <p role="alert" className="mt-4 rounded-xl bg-rejected-soft px-3 py-2 text-sm text-rejected">
           Sign-in didn’t work. Please try again.
