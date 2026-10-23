@@ -28,7 +28,7 @@ export function AddCompany() {
           required
           maxLength={500}
           placeholder="https://company.com/careers"
-          className="h-10 min-w-0 flex-1 rounded-xl border border-rule bg-canvas px-3 text-sm placeholder:text-faint focus:border-accent/40 focus:outline-none focus:ring-4 focus:ring-accent-soft"
+          className="h-10 w-full min-w-0 rounded-xl sm:flex-1 border border-rule bg-canvas px-3 text-sm placeholder:text-faint focus:border-accent/40 focus:outline-none focus:ring-4 focus:ring-accent-soft"
         />
         <button
           type="submit"

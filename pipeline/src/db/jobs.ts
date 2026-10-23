@@ -79,3 +79,35 @@ export async function getTopMatches(limit: number) {
     LIMIT ${limit}
   `;
 }
+export type JobToNotify = {
+  id: string;
+  company: string;
+  title: string;
+  location: string;
+  url: string;
+  fit_score: number;
+  fit_reasons: string | null;
+  employment: string | null;
+  seniority: string;
+};
+
+// Strong entry-level matches that haven't been sent to Discord yet
+export async function getJobsToNotify(minScore: number, limit: number) {
+  const rows = await sql`
+    SELECT id, company, title, location, url, fit_score, fit_reasons, employment, seniority
+    FROM jobs
+    WHERE category = 'developer'
+      AND seniority IN ('fresher', 'entry')
+      AND status = 'new'
+      AND fit_score >= ${minScore}
+      AND notified_at IS NULL
+      AND last_seen_at > now() - interval '3 days'
+    ORDER BY fit_score DESC
+    LIMIT ${limit}
+  `;
+  return rows as JobToNotify[];
+}
+
+export async function markNotified(ids: string[]) {
+  await sql`UPDATE jobs SET notified_at = now() WHERE id = ANY(${ids}) AND notified_at IS NULL`;
+}

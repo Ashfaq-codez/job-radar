@@ -26,13 +26,13 @@ async function CompanyTable() {
       <table className="w-full text-left text-sm">
         <thead className="border-b border-rule text-xs text-faint">
           <tr>
-            <th scope="col" className="px-4 py-2.5 font-medium">Company</th>
-            <th scope="col" className="px-4 py-2.5 font-medium">Open dev roles</th>
-            <th scope="col" className="hidden px-4 py-2.5 font-medium sm:table-cell">Best match</th>
-            <th scope="col" className="hidden px-4 py-2.5 font-medium md:table-cell">All India jobs</th>
-            <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">Board</th>
-            <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">Checked</th>
-            <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
+            <th scope="col" className="px-3 py-2.5 sm:px-4 font-medium">Company</th>
+            <th scope="col" className="px-3 py-2.5 sm:px-4 font-medium"><span className="sm:hidden">Roles</span><span className="hidden sm:inline">Open dev roles</span></th>
+            <th scope="col" className="hidden px-3 sm:px-4 py-2.5 font-medium sm:table-cell">Best match</th>
+            <th scope="col" className="hidden px-3 sm:px-4 py-2.5 font-medium md:table-cell">All India jobs</th>
+            <th scope="col" className="hidden px-3 sm:px-4 py-2.5 font-medium lg:table-cell">Board</th>
+            <th scope="col" className="hidden px-3 sm:px-4 py-2.5 font-medium lg:table-cell">Checked</th>
+            <th scope="col" className="hidden px-3 py-2.5 sm:table-cell sm:px-4"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-rule">
@@ -41,16 +41,23 @@ async function CompanyTable() {
             const board = boardInfo(c.source, c.slug);
             return (
               <tr key={`${c.source}:${c.slug}`} className="transition-colors hover:bg-subtle/60">
-                <td className="px-4 py-2.5 font-medium">
+                <td className="px-3 py-2.5 sm:px-4 font-medium">
                   <span className="flex items-center gap-3">
                     <CompanyLogo company={c.source === "careers" ? name : c.slug} url={c.source === "careers" ? c.slug : undefined} size="sm" />
-                    {name}
-                    {c.added_by_you && (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Added by you</span>
-                    )}
+                    {/* Badge sits under the name so long names keep their width on phones */}
+                    <span className="flex min-w-0 flex-col items-start gap-1">
+                      <span className="break-words">{name}</span>
+                      {c.added_by_you && (
+                        <span className="flex items-center gap-1">
+                          <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Added by you</span>
+                          {/* Phones: Remove lives here instead of its own column */}
+                          <span className="sm:hidden"><RemoveCompany source={c.source} slug={c.slug} name={name} /></span>
+                        </span>
+                      )}
+                    </span>
                   </span>
                 </td>
-                <td className="px-4 py-3 tabular-nums">
+                <td className="px-3 py-3 sm:px-4 tabular-nums">
                   {c.dev_roles > 0 ? (
                     <Link
                       href={`/jobs?q=${encodeURIComponent(c.source === "careers" ? name : c.slug)}`}
@@ -62,15 +69,15 @@ async function CompanyTable() {
                     <span className="text-muted">0</span>
                   )}
                 </td>
-                <td className="hidden px-4 py-3 sm:table-cell">
+                <td className="hidden px-3 sm:px-4 py-3 sm:table-cell">
                   {c.best_score === null ? (
                     <span className="text-muted">—</span>
                   ) : (
                     <Score score={c.best_score} />
                   )}
                 </td>
-                <td className="hidden px-4 py-3 tabular-nums text-muted md:table-cell">{c.india_jobs}</td>
-                <td className="hidden px-4 py-3 lg:table-cell">
+                <td className="hidden px-3 sm:px-4 py-3 tabular-nums text-muted md:table-cell">{c.india_jobs}</td>
+                <td className="hidden px-3 sm:px-4 py-3 lg:table-cell">
                   <a
                     href={boardUrl(c.source, c.slug)}
                     target="_blank"
@@ -87,8 +94,8 @@ async function CompanyTable() {
                     <span className="sr-only">(opens in new tab)</span>
                   </a>
                 </td>
-                <td className="hidden px-4 py-3 text-muted lg:table-cell">{timeAgo(c.last_checked_at)}</td>
-                <td className="px-4 py-3 text-right">
+                <td className="hidden px-3 sm:px-4 py-3 text-muted lg:table-cell">{timeAgo(c.last_checked_at)}</td>
+                <td className="hidden px-3 py-3 text-right sm:table-cell sm:px-4">
                   {c.added_by_you && <RemoveCompany source={c.source} slug={c.slug} name={name} />}
                 </td>
               </tr>

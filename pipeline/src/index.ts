@@ -5,6 +5,7 @@ import { fetchers } from "./sources/index.js";
 import { mapWithLimit } from "./lib/pool.js";
 import { isIndia, passesRules } from "./filters.js";
 import { scoreNewJobs, printTopMatches } from "./scoring/run.js";
+import { notifyDiscord } from "./notify/discord.js";
 import type { CompanyTarget, Job } from "./types.js";
 
 // ── 1. Which boards to fetch: your manual list + everything discovery found ──
@@ -61,3 +62,6 @@ if (newMatches.length === 0) {
 // ── 6. AI scoring + best matches ──
 await scoreNewJobs();
 await printTopMatches();
+
+// ── 7. Send new strong matches to Discord ──
+await notifyDiscord();

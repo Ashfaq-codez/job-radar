@@ -77,7 +77,7 @@ async function OverviewContent() {
         </dl>
       </section>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card tint="bg-interview ring-interview-soft" title="New roles per day" subtitle={`${newThisWeek} in the last 7 days`}>
           <ColumnChart
             data={ins.perDay.map((d) => ({ key: d.day, n: d.n }))}
@@ -112,14 +112,14 @@ async function OverviewContent() {
         </Card>
       </div>
 
-      <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_20rem]">
+      <div className="mt-10 grid grid-cols-1 gap-8 xl:grid-cols-[1fr_20rem]">
         <section aria-labelledby="top-heading">
           <div className="mb-3 flex items-baseline justify-between gap-4">
             <h2 id="top-heading" className="text-sm font-medium">Top matches</h2>
             <Link href="/jobs" className="text-sm text-accent hover:underline">View all {o.toReview} →</Link>
           </div>
           {top.length > 0 ? (
-            <ul className="grid gap-3 sm:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {top.map((job) => (
                 <li key={job.id}><JobCard job={job} href={`/jobs?job=${encodeURIComponent(job.id)}`} /></li>
               ))}

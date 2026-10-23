@@ -55,3 +55,7 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS name        text;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS careers_url text;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS added_by    text NOT NULL DEFAULT 'discovery';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS added_at    timestamptz;
+
+-- Discord notifications: when a job was sent, so it's never sent twice
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notified_at timestamptz;
+CREATE INDEX IF NOT EXISTS jobs_notify_idx ON jobs (fit_score DESC) WHERE notified_at IS NULL;
