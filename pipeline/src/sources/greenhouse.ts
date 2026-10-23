@@ -18,9 +18,12 @@ const GreenhouseResponseSchema = z.object({
   jobs: z.array(GreenhouseJobSchema),
 });
 
-export async function fetchGreenhouseJobs(company: string): Promise<Job[]> {
-  // ?content=true makes Greenhouse include each job's description
-  const url = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs?content=true`;
+export async function fetchGreenhouseJobs(
+  company: string,
+  opts: { lite?: boolean } = {}
+): Promise<Job[]> {
+  // lite = skip descriptions (much smaller response), used by discovery
+  const url = `https://boards-api.greenhouse.io/v1/boards/${company}/jobs${opts.lite ? "" : "?content=true"}`;
   const raw = await fetchJson(url, `greenhouse/${company}`);
   const data = GreenhouseResponseSchema.parse(raw); // throws if shape is wrong
 

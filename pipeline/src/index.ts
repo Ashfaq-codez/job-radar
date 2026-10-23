@@ -1,61 +1,63 @@
-import { companies } from "./companies.js";
-import { fetchGreenhouseJobs } from "./sources/greenhouse.js";
-import { fetchLeverJobs } from "./sources/lever.js";
-import { fetchAshbyJobs } from "./sources/ashby.js";
-import type { Job, Source } from "./types.js";
+import { companies as manualCompanies } from "./companies.js";
+import { getActiveCompanies } from "./db/companies.js";
 import { upsertJobs } from "./db/jobs.js";
-import { passesRules } from "./filters.js";
+import { fetchers } from "./sources/index.js";
+import { mapWithLimit } from "./lib/pool.js";
+import { isIndia, passesRules } from "./filters.js";
 import { scoreNewJobs, printTopMatches } from "./scoring/run.js";
+import type { CompanyTarget, Job } from "./types.js";
 
-// Look up the right fetcher for each source
-const fetchers: Record<Source, (company: string) => Promise<Job[]>> = {
-  greenhouse: fetchGreenhouseJobs,
-  lever: fetchLeverJobs,
-  ashby: fetchAshbyJobs,
-};
+// ── 1. Which boards to fetch: your manual list + everything discovery found ──
+const allTargets: CompanyTarget[] = [...manualCompanies, ...(await getActiveCompanies())];
+const companies = [
+  ...new Map(allTargets.map((c) => [`${c.source}:${c.slug.toLowerCase()}`, c])).values(),
+];
+console.log(`Fetching ${companies.length} job boards...`);
 
-// Start ALL fetches at once; allSettled waits for every one, even failures
-const results = await Promise.allSettled(
-  companies.map((c) => fetchers[c.source](c.slug))
-);
+// ── 2. Fetch them, at most 10 at a time ──
+const results = await mapWithLimit(companies, 10, (c) => fetchers[c.source](c.slug));
 
 const allJobs: Job[] = [];
+let failed = 0;
 
 for (const [i, result] of results.entries()) {
   const c = companies[i];
   if (!c) continue; // TS can't prove companies[i] exists, so we check
 
-  const label = `${c.source}/${c.slug}`;
   if (result.status === "fulfilled") {
-    console.log(`✅ ${label}: ${result.value.length} jobs`);
     allJobs.push(...result.value);
   } else {
-    console.log(`❌ ${label}: ${result.reason}`);
+    failed++;
+    console.log(`❌ ${c.source}/${c.slug}: ${result.reason}`);
   }
 }
 
-// Dedupe level 1: same id twice in THIS run → keep one
-const uniqueJobs = [...new Map(allJobs.map((job) => [job.id, job])).values()];
-
-// Dedupe level 2: the database handles jobs seen in earlier runs
-const { newIds, seenCount } = await upsertJobs(uniqueJobs);
-console.log(`\n💾 Saved: ${newIds.length} new, ${seenCount} already seen`);
-
-
-const newSet = new Set(newIds);
-const newIndiaJobs = uniqueJobs.filter(
-  (job) => newSet.has(job.id) && passesRules(job)
+console.log(
+  `✅ ${companies.length - failed} boards fetched, ${failed} failed, ${allJobs.length} jobs total`
 );
 
-if (newIndiaJobs.length === 0) {
-  console.log("No new India jobs since last run.");
+// ── 3. Dedupe level 1 (same job twice in this run), then keep only India jobs ──
+const uniqueJobs = [...new Map(allJobs.map((job) => [job.id, job])).values()];
+const indiaJobs = uniqueJobs.filter(isIndia);
+
+// ── 4. Save. Dedupe level 2: the database handles jobs seen in earlier runs ──
+const { newIds, seenCount } = await upsertJobs(indiaJobs);
+console.log(`\n💾 Saved ${indiaJobs.length} India jobs: ${newIds.length} new, ${seenCount} already seen`);
+
+// ── 5. Show new jobs that pass the rules (India + entry level) ──
+const newSet = new Set(newIds);
+const newMatches = indiaJobs.filter((job) => newSet.has(job.id) && passesRules(job));
+
+if (newMatches.length === 0) {
+  console.log("No new entry-level India jobs since last run.");
 } else {
-  console.log(`\n🆕 ${newIndiaJobs.length} new India jobs:\n`);
-  for (const job of newIndiaJobs.slice(0, 15)) {
+  console.log(`\n🆕 ${newMatches.length} new entry-level India jobs:\n`);
+  for (const job of newMatches.slice(0, 15)) {
     console.log(`- [${job.source}] ${job.company} | ${job.title} | ${job.location}`);
     console.log(`  ${job.url}`);
   }
 }
 
+// ── 6. AI scoring + best matches ──
 await scoreNewJobs();
 await printTopMatches();

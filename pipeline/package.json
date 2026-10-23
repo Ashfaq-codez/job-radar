@@ -4,10 +4,14 @@
   "type": "module",
   "description": "",
   "main": "index.js",
-  "scripts": {
+    "scripts": {
     "dev": "tsx --env-file=.env src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "discover": "tsx --env-file=.env src/discover/run.ts",
+    "test": "tsx --test src/classify.test.ts",
+    "reclassify": "tsx --env-file-if-exists=.env src/scripts/reclassify.ts"
   },
+  
   "keywords": [],
   "author": "",
   "license": "ISC",

@@ -23,7 +23,7 @@ export const FitSchema = z.object({
 });
 export type Fit = z.infer<typeof FitSchema>;
 
-const INSTRUCTIONS = `You screen jobs for one candidate: a 2025 Computer Science graduate in Bengaluru looking for an entry-level software developer role (0-1 years of experience).
+const INSTRUCTIONS = `You screen jobs for one candidate: a 2025 Computer Science graduate in Bengaluru looking for an entry-level software developer role or a software internship (0-1 years of experience). Internships and full-time roles are both welcome, at startups or established companies.
 
 Compare the job with the candidate's resume and return:
 - score: 0-100. 80+ = strong match, apply today. 50-79 = worth applying. Below 50 = poor fit.

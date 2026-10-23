@@ -18,3 +18,14 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fit_score   integer;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fit_reasons text;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scored_at   timestamptz;
+
+-- Dashboard: application tracking
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'new'
+  CHECK (status IN ('new', 'applied', 'interviewing', 'offer', 'rejected', 'hidden'));
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_changed_at timestamptz;
+
+-- Role classification (filled by the pipeline)
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category   text;  -- 'developer' | 'other'
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS employment text;  -- 'internship' | 'full_time'
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS seniority  text;  -- 'entry' | 'senior'
+CREATE INDEX IF NOT EXISTS jobs_category_idx ON jobs (category, seniority);

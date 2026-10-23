@@ -1,17 +1,24 @@
 import { sql } from "./client.js";
 import type { Job } from "../types.js";
+import { classify } from "../classify.js";
 
 export async function upsertJobs(
   jobs: Job[]
 ): Promise<{ newIds: string[]; seenCount: number }> {
   if (jobs.length === 0) return { newIds: [], seenCount: 0 };
 
+  // Attach the labels to each job before saving
+  const rowsIn = jobs.map((job) => ({ ...job, ...classify(job.title) }));
+
   const rows = await sql`
-        INSERT INTO jobs (id, source, company, title, location, is_remote, url, posted_at, description)
-    SELECT id, source, company, title, location, "isRemote", url, "postedAt", description
-    FROM jsonb_to_recordset(${JSON.stringify(jobs)}::jsonb) AS j(
+    INSERT INTO jobs (id, source, company, title, location, is_remote, url, posted_at,
+                      description, category, employment, seniority)
+    SELECT id, source, company, title, location, "isRemote", url, "postedAt",
+           description, category, employment, seniority
+    FROM jsonb_to_recordset(${JSON.stringify(rowsIn)}::jsonb) AS j(
       id text, source text, company text, title text, location text,
-      "isRemote" boolean, url text, "postedAt" timestamptz, description text
+      "isRemote" boolean, url text, "postedAt" timestamptz, description text,
+      category text, employment text, seniority text
     )
     ON CONFLICT (id) DO UPDATE SET
       title        = EXCLUDED.title,
@@ -19,6 +26,9 @@ export async function upsertJobs(
       is_remote    = EXCLUDED.is_remote,
       url          = EXCLUDED.url,
       description  = EXCLUDED.description,
+      category     = EXCLUDED.category,
+      employment   = EXCLUDED.employment,
+      seniority    = EXCLUDED.seniority,
       last_seen_at = now()
     RETURNING id, (first_seen_at = last_seen_at) AS is_new
   `;
@@ -35,15 +45,15 @@ export interface JobToScore {
   description: string;
 }
 
-// Jobs never scored, with a description, roughly in India.
-// ILIKE is a rough first cut; filters.ts does the precise check.
+// Entry-level developer jobs with a description that the AI hasn't scored yet
 export async function getUnscoredJobs(): Promise<JobToScore[]> {
   const rows = await sql`
     SELECT id, company, title, location, description
     FROM jobs
     WHERE scored_at IS NULL
       AND description <> ''
-      AND (location ILIKE '%bengaluru%' OR location ILIKE '%bangalore%' OR location ILIKE '%india%')
+      AND category = 'developer'
+      AND seniority IN ('fresher', 'entry')
     ORDER BY first_seen_at DESC
   `;
   return rows as JobToScore[];

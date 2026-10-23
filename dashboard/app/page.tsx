@@ -1,97 +1,104 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { connection } from "next/server";
-import { sql } from "@/lib/db";
+import { getJobs, getSummary, TABS, type Tab } from "@/lib/jobs";
+import { JobRow } from "./components/job-row";
 
-type Fit = {
-  verdict: "apply" | "maybe" | "skip";
-  reasons: string[];
-  missing: string[];
+type SearchParams = Promise<{ tab?: string; strong?: string }>;
+
+const TAB_LABELS: Record<Tab, string> = {
+  review: "To review",
+  applied: "Applied",
+  archived: "Archived",
 };
 
-function parseFit(raw: string | null): Fit | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as Fit;
-  } catch {
-    return null;
-  }
+// URL values are user input. hasOwn avoids tricks like ?tab=constructor
+function isTab(value: string | undefined): value is Tab {
+  return value !== undefined && Object.hasOwn(TABS, value);
 }
 
-function scoreColor(score: number): string {
-  if (score >= 80) return "bg-green-100 text-green-800";
-  if (score >= 50) return "bg-yellow-100 text-yellow-800";
-  return "bg-gray-100 text-gray-600";
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
-// The live part: queries Neon on every visit
-async function MatchList() {
-  await connection(); // "this needs a real request; never pre-build it"
+const EMPTY_TEXT: Record<Tab, string> = {
+  review: "Nothing left to review. Run the pipeline (npm run dev in the pipeline folder) to fetch new jobs.",
+  applied: "No applications yet. Mark a job as applied from To review and it moves here.",
+  archived: "Nothing archived. Jobs you mark as not for me or rejected end up here.",
+};
 
-  const jobs = await sql`
-    SELECT id, company, title, location, url, fit_score, fit_reasons
-    FROM jobs
-    WHERE fit_score IS NOT NULL
-      AND last_seen_at > now() - interval '3 days'
-    ORDER BY fit_score DESC
-    LIMIT 50
-  `;
+async function Dashboard({ searchParams }: { searchParams: SearchParams }) {
+  await connection();
+  const params = await searchParams;
+  const tab: Tab = isTab(params.tab) ? params.tab : "review";
+  const strongOnly = params.strong === "1";
+
+  // Both queries run at the same time
+  const [summary, jobs] = await Promise.all([getSummary(), getJobs(tab, strongOnly)]);
+  const counts: Record<Tab, number> = {
+    review: summary.review,
+    applied: summary.applied,
+    archived: summary.archived,
+  };
 
   return (
     <>
-      <p className="mb-6 text-sm text-gray-500">{jobs.length} scored matches, best first</p>
+      <p className="mt-3 max-w-prose text-lg text-muted">
+        {summary.strong > 0
+          ? `${plural(summary.strong, "strong match", "strong matches")} waiting.`
+          : "No strong matches right now."}{" "}
+        {plural(summary.applied, "application", "applications")} in progress.
+      </p>
 
-      <ul className="space-y-4">
-        {jobs.map((job) => {
-          const fit = parseFit(job.fit_reasons);
-          return (
-            <li key={job.id} className="rounded-lg border border-gray-200 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold">{job.title}</p>
-                  <p className="text-sm text-gray-500">
-                    {job.company} · {job.location}
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-bold ${scoreColor(job.fit_score)}`}>
-                  {job.fit_score}
-                </span>
-              </div>
-
-              {fit && (
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-                  {fit.reasons.map((reason, i) => (
-                    <li key={i}>{reason}</li>
-                  ))}
-                </ul>
-              )}
-
-              {fit && fit.missing.length > 0 && (
-                <p className="mt-2 text-sm text-red-600">Missing: {fit.missing.join(", ")}</p>
-              )}
-
-              <a
-                href={job.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-block text-sm font-medium text-blue-600 hover:underline"
+      <nav
+        aria-label="Job lists"
+        className="mt-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-rule"
+      >
+        <ul className="flex gap-6">
+          {(Object.keys(TABS) as Tab[]).map((t) => (
+            <li key={t}>
+              <Link
+                href={{ query: { tab: t } }}
+                aria-current={t === tab ? "page" : undefined}
+                className={`-mb-px inline-block border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${
+                  t === tab ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
+                }`}
               >
-                Open job →
-              </a>
+                {TAB_LABELS[t]} <span className="ml-1 tabular-nums text-muted">{counts[t]}</span>
+              </Link>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+
+        <Link
+          href={{ query: strongOnly ? { tab } : { tab, strong: "1" } }}
+          className="pb-3 text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {strongOnly ? "Show all matches" : "Show strong matches only"}
+        </Link>
+      </nav>
+
+      {jobs.length === 0 ? (
+        <p className="mt-10 max-w-prose text-muted">
+          {strongOnly ? "No strong matches here. Show all matches to see the rest." : EMPTY_TEXT[tab]}
+        </p>
+      ) : (
+        <ol className="divide-y divide-rule">
+          {jobs.map((job) => (
+            <JobRow key={job.id} job={job} />
+          ))}
+        </ol>
+      )}
     </>
   );
 }
 
-// The page: the heading shows instantly, the list streams in
-export default function Home() {
+export default function Page({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold">job-radar</h1>
-      <Suspense fallback={<p className="text-sm text-gray-500">Loading matches…</p>}>
-        <MatchList />
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
+      <h1 className="font-display text-5xl font-bold tracking-tight sm:text-6xl">job-radar</h1>
+      <Suspense fallback={<p className="mt-3 text-lg text-muted">Loading your matches…</p>}>
+        <Dashboard searchParams={searchParams} />
       </Suspense>
     </main>
   );
