@@ -1,5 +1,5 @@
 import type { JobRow, Status } from "@/lib/jobs";
-import { scoreColor, STATUS_LABEL, STATUS_PILL } from "@/lib/format";
+import { experienceLabel, scoreColor, STATUS_LABEL, STATUS_PILL } from "@/lib/format";
 
 // Fit score as a pill whose colour slides from red (0) through orange to green (100)
 export function Score({ score, size = "md" }: { score: number | null; size?: "md" | "lg" }) {
@@ -25,11 +25,21 @@ export function Score({ score, size = "md" }: { score: number | null; size?: "md
   );
 }
 
-export function RoleBadges({ job }: { job: Pick<JobRow, "employment" | "seniority"> }) {
+export function RoleBadges({ job }: { job: Pick<JobRow, "employment" | "seniority" | "experience_text" | "status" | "opened_at"> }) {
+  const years = experienceLabel(job.experience_text);
+  const opened = job.opened_at && (job.status === "new" || job.status === "saved");
   return (
     <>
       <Tag>{job.employment === "internship" ? "Internship" : "Full-time"}</Tag>
       {job.seniority === "fresher" && <Tag>Fresher</Tag>}
+      {years && (
+        <span title={`Asks for ${job.experience_text}`} className="inline-flex items-center rounded-full bg-sky px-2 py-0.5 text-[11px] font-medium text-ink/75">
+          <span className="sr-only">Experience: </span>{years}
+        </span>
+      )}
+      {opened && (
+        <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent">Opened</span>
+      )}
     </>
   );
 }

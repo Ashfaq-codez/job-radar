@@ -3,12 +3,13 @@
 import type { Status } from "@/lib/jobs";
 import { celebrate } from "./celebrate";
 
-type Icon = "apply" | "save" | "unsave";
+type Icon = "apply" | "save" | "unsave" | "hide";
 
 const ICONS: Record<Icon, React.ReactNode> = {
   apply: <path d="M6 10h8m-3-3 3 3-3 3" />,
   save: <path d="M6 4h8v12l-4-3-4 3z" />,
   unsave: <path d="M6 4h8v12l-4-3-4 3zM4 4l12 12" />,
+  hide: <path d="m6 6 8 8m0-8-8 8" />,
 };
 
 export function TriageButton({
@@ -44,7 +45,7 @@ export function TriageButton({
 
 // What each one-click action does from the jobs list
 export const TRIAGE = {
-  apply: { to: "applied" as Status, done: "Applied! 🎉 One step closer" },
+  hide: { to: "hidden" as Status, done: "Hidden. It won't show up again" },
   save: { to: "saved" as Status, done: "Saved ⭐ Come back to it soon" },
   unsave: { to: "new" as Status, done: "Moved back to review" },
 };

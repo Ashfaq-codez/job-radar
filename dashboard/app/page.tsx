@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { getBoard, getInsights, getOverview, getTopMatches } from "@/lib/jobs";
+import { getBoard, getInsights, getOpenedPending, getOverview, getTopMatches } from "@/lib/jobs";
 import { prettyCompany, scoreColor, timeAgo } from "@/lib/format";
 import { BarList, ColumnChart } from "./components/charts";
 import { JobCard } from "./components/job-card";
 import { Empty, StatusPill } from "./components/ui";
 import { CompanyLogo } from "./components/company-logo";
+import { DidYouApply } from "./components/apply-confirm";
 
 function HeroStat({ label, value, href }: { label: string; value: number; href: string }) {
   return (
@@ -45,7 +46,7 @@ const dayFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", t
 
 async function OverviewContent() {
   await connection();
-  const [o, top, board, ins] = await Promise.all([getOverview(), getTopMatches(6), getBoard(), getInsights()]);
+  const [o, top, board, ins, opened] = await Promise.all([getOverview(), getTopMatches(6), getBoard(), getInsights(), getOpenedPending()]);
   const inProgress = board.filter((j) => j.status !== "rejected" && j.status !== "saved").slice(0, 5);
   const newThisWeek = ins.perDay.slice(-7).reduce((s, d) => s + d.n, 0);
 
@@ -76,6 +77,30 @@ async function OverviewContent() {
           <HeroStat href="/applied" label={`Active · ${o.interviewing} interviewing`} value={o.active} />
         </dl>
       </section>
+
+      {opened.length > 0 && (
+        <section aria-labelledby="did-you-apply-heading" className="mt-6 rounded-3xl border border-rule bg-surface p-5 shadow-card">
+          <h2 id="did-you-apply-heading" className="flex items-center gap-2 text-sm font-bold">
+            <span aria-hidden="true" className="size-2.5 rounded-full bg-accent ring-4 ring-accent-soft" />
+            Did you apply?
+          </h2>
+          <p className="mt-0.5 text-xs text-faint">Roles you opened on the company site this week</p>
+          <ul className="mt-4 divide-y divide-rule">
+            {opened.map((job) => (
+              <li key={job.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                <CompanyLogo company={job.company} url={job.url} />
+                <div className="min-w-0 flex-1">
+                  <DidYouApply job={job} />
+                  <p className="mt-0.5 text-xs text-faint">
+                    Opened {timeAgo(job.opened_at)} ·{" "}
+                    <Link href={`/jobs?job=${encodeURIComponent(job.id)}`} className="text-accent hover:underline">Details</Link>
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card tint="bg-interview ring-interview-soft" title="New roles per day" subtitle={`${newThisWeek} in the last 7 days`}>

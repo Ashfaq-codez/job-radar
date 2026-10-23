@@ -6,6 +6,7 @@ import type { JobDetail, Status } from "@/lib/jobs";
 import { STATUS_LABEL } from "@/lib/format";
 import { saveNotes, updateStatus } from "../actions";
 import { TriageButton } from "./triage";
+import { ApplyLink, DidYouApply, openAndMark } from "./apply-confirm";
 import { celebrate } from "./celebrate";
 
 type Nav = { closeHref: string; prevHref: string | null; nextHref: string | null };
@@ -19,15 +20,17 @@ const NEXT_STEPS: Partial<Record<Status, Status[]>> = {
   hidden: ["new"],
 };
 
-export function PanelControls({ job, nav }: { job: Pick<JobDetail, "id" | "url" | "status">; nav: Nav }) {
+export function PanelControls({ job, nav }: { job: Pick<JobDetail, "id" | "url" | "status" | "title" | "company" | "opened_at">; nav: Nav }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const triage = job.status === "new" || job.status === "saved";
+  // Ask right after Apply is clicked, and on any later visit until answered
+  const [askedHere, setAskedHere] = useState(false);
+  const asking = triage && (askedHere || job.opened_at !== null);
 
   // After acting on a role in review, jump straight to the next one
-  function move(to: Status, { advance = triage, openPosting = false } = {}) {
+  function move(to: Status, { advance = triage } = {}) {
     if (to === "interviewing" || to === "offer") celebrate();
-    if (openPosting) window.open(job.url, "_blank", "noopener,noreferrer");
     startTransition(async () => {
       await updateStatus(job.id, to);
       if (advance) router.replace(nav.nextHref ?? nav.prevHref ?? nav.closeHref, { scroll: false });
@@ -41,8 +44,12 @@ export function PanelControls({ job, nav }: { job: Pick<JobDetail, "id" | "url" 
       if (e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]")) return;
       if ((e.key === "j" || e.key === "ArrowDown") && nav.nextHref) router.replace(nav.nextHref, { scroll: false });
       else if ((e.key === "k" || e.key === "ArrowUp") && nav.prevHref) router.replace(nav.prevHref, { scroll: false });
-      else if (triage && e.key === "a") move("applied", { openPosting: true });
+      else if (triage && e.key === "a") {
+        setAskedHere(true);
+        openAndMark(job, startTransition);
+      }
       else if (triage && e.key === "s") move(job.status === "saved" ? "new" : "saved");
+      else if (triage && e.key === "x") move("hidden");
       else if (e.key === "o") window.open(job.url, "_blank", "noopener,noreferrer");
     };
     window.addEventListener("keydown", onKey);
@@ -50,38 +57,50 @@ export function PanelControls({ job, nav }: { job: Pick<JobDetail, "id" | "url" 
   });
 
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 transition-opacity ${pending ? "pointer-events-none opacity-50" : ""}`}>
-      {triage ? (
-        <>
-          <TriageButton icon="apply" label="Apply" primary onClick={() => move("applied", { openPosting: true })} />
-          {job.status === "saved" ? (
-            <TriageButton icon="unsave" label="Unsave" onClick={() => move("new")} />
-          ) : (
-            <TriageButton icon="save" label="Save" onClick={() => move("saved")} />
-          )}
-        </>
-      ) : (
-        (NEXT_STEPS[job.status] ?? []).map((to, i) => (
-          <button
-            key={to}
-            type="button"
-            onClick={() => move(to, { advance: false })}
-            className={`h-8 rounded-xl px-3 text-[13px] font-medium transition-colors ${
-              i === 0 ? "btn-gradient" : "border border-rule text-muted hover:bg-subtle hover:text-ink"
-            }`}
+    <div className="space-y-3">
+      <div aria-live="polite">
+        {asking && (
+          <div className="rounded-2xl bg-accent-soft/60 p-3 ring-1 ring-accent/15">
+            <DidYouApply job={job} onAnswer={(applied) => !applied && setAskedHere(false)} />
+          </div>
+        )}
+      </div>
+      <div className={`flex flex-wrap items-center gap-1.5 transition-opacity ${pending ? "pointer-events-none opacity-50" : ""}`}>
+        {triage ? (
+          <>
+            <ApplyLink job={job} onOpened={() => setAskedHere(true)} />
+            {job.status === "saved" ? (
+              <TriageButton icon="unsave" label="Unsave" onClick={() => move("new")} />
+            ) : (
+              <TriageButton icon="save" label="Save" onClick={() => move("saved")} />
+            )}
+            <TriageButton icon="hide" label="Not for me" onClick={() => move("hidden")} />
+          </>
+        ) : (
+          (NEXT_STEPS[job.status] ?? []).map((to, i) => (
+            <button
+              key={to}
+              type="button"
+              onClick={() => move(to, { advance: false })}
+              className={`h-8 rounded-xl px-3 text-[13px] font-medium transition-colors ${
+                i === 0 ? "btn-gradient" : "border border-rule text-muted hover:bg-subtle hover:text-ink"
+              }`}
+            >
+              {to === "new" ? "Back to review" : `Move to ${STATUS_LABEL[to]}`}
+            </button>
+          ))
+        )}
+        {!triage && (
+          <a
+            href={job.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-[13px] font-medium text-accent hover:bg-accent-soft"
           >
-            {to === "new" ? "Back to review" : `Move to ${STATUS_LABEL[to]}`}
-          </button>
-        ))
-      )}
-      <a
-        href={job.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="ml-auto inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-[13px] font-medium text-accent hover:bg-accent-soft"
-      >
-        View posting ↗
-      </a>
+            View posting ↗
+          </a>
+        )}
+      </div>
     </div>
   );
 }

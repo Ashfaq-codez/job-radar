@@ -12,6 +12,7 @@ export const PORTALS: Portal[] = [
   { name: "Indeed India", url: "https://in.indeed.com/jobs?q=software+developer+fresher&l=Bengaluru", note: "Fresher dev roles in Bengaluru" },
   { name: "Unstop", url: "https://unstop.com/jobs", note: "Campus hiring and challenges" },
   { name: "Internshala", url: "https://internshala.com/jobs/", note: "Internships and fresher jobs" },
+  { name: "MyGreenhouse", url: "https://my.greenhouse.io/jobs", note: "All Greenhouse jobs, one profile", logoDomain: "greenhouse.com" },
   { name: "Wellfound", url: "https://wellfound.com/jobs", note: "Startup jobs" },
   { name: "YC Work at a Startup", url: "https://www.workatastartup.com/", note: "Y Combinator companies", logoDomain: "ycombinator.com" },
   { name: "Instahyre", url: "https://www.instahyre.com/", note: "Recruiters reach out to you" },
@@ -22,14 +23,4 @@ export const PORTALS: Portal[] = [
   { name: "Remote OK", url: "https://remoteok.com/remote-dev-jobs", note: "Remote dev jobs worldwide" },
   { name: "We Work Remotely", url: "https://weworkremotely.com/remote-jobs/search?term=developer", note: "Large remote job board" },
   { name: "Himalayas", url: "https://himalayas.app/jobs/countries/india", note: "Remote jobs open to India" },
-];
-
-// Job boards run by the hiring platforms themselves: search every company that uses them and apply
-// on the platform. (Workday, Lever and Ashby only host per-company boards, with no cross-company search.)
-export const APPLY_BOARDS: Portal[] = [
-  { name: "MyGreenhouse", url: "https://my.greenhouse.io/jobs", note: "All Greenhouse jobs, one profile (free sign-in)" },
-  { name: "Workable Jobs", url: "https://jobs.workable.com/", note: "Every Workable company, apply in one place" },
-  { name: "SmartRecruiters", url: "https://jobs.smartrecruiters.com/", note: "Search all SmartRecruiters companies" },
-  { name: "Arc.dev", url: "https://arc.dev/remote-jobs", note: "Remote developer jobs, one profile" },
-  { name: "Turing", url: "https://www.turing.com/jobs", note: "Remote US-company dev roles" },
 ];

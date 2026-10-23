@@ -59,3 +59,10 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS added_at    timestamptz;
 -- Discord notifications: when a job was sent, so it's never sent twice
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS notified_at timestamptz;
 CREATE INDEX IF NOT EXISTS jobs_notify_idx ON jobs (fit_score DESC) WHERE notified_at IS NULL;
+
+-- Experience asked for in the description ("0-2 years" → 0); NULL when it doesn't say
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_years       integer;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS experience_text text;
+
+-- When "Apply on company site" was clicked, so the dashboard can ask "Did you apply?"
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS opened_at timestamptz;

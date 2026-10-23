@@ -75,3 +75,17 @@ export const STATUS_PILL: Record<Status, string> = {
   rejected: "bg-rejected-soft text-rejected",
   hidden: "bg-subtle text-faint",
 };
+
+// The description's experience phrase as a short chip: "0-2 years of experience" → "0–2 yrs".
+// Null for "freshers welcome"-style matches, which the Fresher badge already says.
+export function experienceLabel(text: string | null): string | null {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  const n = t.match(/\d+/g);
+  if (!n) return null;
+  if (/less than|under|up to|upto/.test(t)) return `< ${n[0]} yrs`;
+  if (n.length >= 2) return `${n[0]}–${n[1]} yrs`;
+  if (/\+|minimum|at least|min/.test(t)) return `${n[0]}+ yrs`;
+  return `${n[0]} yrs`;
+}
+

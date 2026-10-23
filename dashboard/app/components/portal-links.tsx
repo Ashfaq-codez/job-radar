@@ -1,5 +1,5 @@
 import { logoUrl } from "@/lib/logos";
-import { APPLY_BOARDS, PORTALS, type Portal } from "@/lib/portals";
+import { PORTALS, type Portal } from "@/lib/portals";
 
 // Each pill gets its own pastel, cycling through the theme's tints
 const TINTS = ["bg-lavender", "bg-sky", "bg-mint", "bg-butter", "bg-peach", "bg-cyan"];
@@ -29,7 +29,6 @@ function PortalList({ items, tintOffset = 0 }: { items: Portal[]; tintOffset?: n
 
 const GROUPS = [
   { id: "portals", icon: "🧭", title: "Job portals", items: PORTALS },
-  { id: "apply-boards", icon: "⚡", title: "Apply directly", items: APPLY_BOARDS },
 ];
 
 // Desktop (lg): heading + pill grid per group; the layout puts them in the sidebar's scrolling area

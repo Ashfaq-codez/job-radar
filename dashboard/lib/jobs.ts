@@ -19,6 +19,9 @@ export interface JobRow {
   seniority: "fresher" | "entry" | "senior" | null;
   first_seen_at: Date | string;
   status_changed_at: Date | string | null;
+  opened_at: Date | string | null;      // "Apply on company site" clicked, not yet confirmed
+  min_years: number | null;
+  experience_text: string | null;
 }
 
 export interface JobDetail extends JobRow {
@@ -32,8 +35,12 @@ export const PAGE_SIZE = 30;
 // Reusable SQL pieces. Functions, so every query gets its own copy.
 const columns = () => sql`
   id, company, title, location, url, source, fit_score, fit_reasons,
-  status, employment, seniority, first_seen_at, status_changed_at`;
+  status, employment, seniority, first_seen_at, status_changed_at, opened_at, min_years, experience_text`;
+// The roles this dashboard is for. Every list and count uses it, so senior roles never show up;
+// only the Applied board skips it, since it shows whatever you applied to.
 const isTarget = () => sql`category = 'developer' AND seniority IN ('fresher', 'entry')`;
+// The same jobs with a "target" flag, for joins that need every job but count only targets
+const jobsWithTarget = () => sql`(SELECT *, (${isTarget()}) AS target FROM jobs)`;
 const isOpen = () => sql`last_seen_at > now() - interval '3 days'`;
 const num = (v: unknown) => Number(v ?? 0);
 
@@ -116,6 +123,16 @@ export async function getJob(id: string): Promise<JobDetail | null> {
   return (rows[0] as JobDetail | undefined) ?? null;
 }
 
+// Jobs you opened on the company site in the last week but haven't confirmed applying to
+export async function getOpenedPending(limit = 10): Promise<JobRow[]> {
+  const rows = await sql`
+    SELECT ${columns()} FROM jobs
+    WHERE ${isTarget()} AND status IN ('new', 'saved') AND opened_at > now() - interval '7 days'
+    ORDER BY opened_at DESC
+    LIMIT ${limit}`;
+  return rows as JobRow[];
+}
+
 export type BoardRow = JobRow & { notes: string };
 
 export async function getBoard(): Promise<BoardRow[]> {
@@ -140,14 +157,11 @@ export interface CompanyRow {
 export async function getCompanies(): Promise<CompanyRow[]> {
   const rows = await sql`
     SELECT c.source, c.slug, c.india_jobs, c.last_checked_at, c.name, c.added_by = 'dashboard' AS added_by_you,
-           count(j.id) FILTER (
-             WHERE j.category = 'developer' AND j.seniority IN ('fresher', 'entry')
-               AND j.last_seen_at > now() - interval '3 days'
-           ) AS dev_roles,
-           max(j.fit_score) AS best_score
+           count(j.id) FILTER (WHERE j.target AND j.last_seen_at > now() - interval '3 days') AS dev_roles,
+           max(j.fit_score) FILTER (WHERE j.target) AS best_score
     FROM companies c
     -- careers jobs are stored under the employer's name, other sources under the board slug
-    LEFT JOIN jobs j ON j.source = c.source
+    LEFT JOIN ${jobsWithTarget()} j ON j.source = c.source
       AND lower(j.company) = lower(CASE WHEN c.source = 'careers' THEN coalesce(c.name, c.slug) ELSE c.slug END)
     WHERE c.india_jobs > 0 OR c.added_by = 'dashboard'
     GROUP BY c.source, c.slug, c.india_jobs, c.last_checked_at, c.name, c.added_by, c.added_at
@@ -179,8 +193,7 @@ export async function getInsights() {
     sql`
       SELECT to_char(d, 'YYYY-MM-DD') AS day, count(j.id) AS n
       FROM generate_series(current_date - 13, current_date, interval '1 day') d
-      LEFT JOIN jobs j ON j.first_seen_at::date = d::date AND j.category = 'developer'
-        AND j.seniority IN ('fresher', 'entry')
+      LEFT JOIN ${jobsWithTarget()} j ON j.first_seen_at::date = d::date AND j.target
       GROUP BY d ORDER BY d`,
     sql`
       SELECT least(floor(fit_score / 10), 9) AS b, count(*) AS n
