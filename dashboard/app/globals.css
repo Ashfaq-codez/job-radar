@@ -237,3 +237,27 @@ body {
 .scroll-dark:hover { scrollbar-color: rgb(255 255 255 / 0.3) transparent; }
 .scroll-dark::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.15); }
 .scroll-dark:hover::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.3); }
+
+/* Sign-in: letters of each word slide up through a clipped line, one after another, hold,
+   then slide out the top as the next word comes in. Transform-only, so it stays on the GPU.
+   4 words share a 10s cycle; word i starts at i × 2.5s, letter j adds j × 35ms. */
+@keyframes letter-roll {
+  0% { transform: translateY(110%); }
+  6%, 22% { transform: translateY(0); }
+  28%, 100% { transform: translateY(-110%); }
+}
+.animate-letter-roll {
+  display: inline-block;
+  transform: translateY(110%);
+  will-change: transform;
+  animation: letter-roll 10s cubic-bezier(0.65, 0, 0.35, 1) infinite both;
+}
+
+/* Sign-in: endless ticker of role titles (content is doubled, so -50% loops cleanly) */
+@keyframes marquee { to { transform: translateX(-50%); } }
+.animate-marquee { animation: marquee 40s linear infinite; }
+.animate-marquee:hover { animation-play-state: paused; }
+.animate-marquee-reverse { animation: marquee 50s linear infinite reverse; }
+
+/* Google's brand colours, only for its "G" mark on the sign-in button */
+:root { --g-blue: #4285f4; --g-green: #34a853; --g-yellow: #fbbc05; --g-red: #ea4335; }

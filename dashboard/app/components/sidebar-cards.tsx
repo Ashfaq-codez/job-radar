@@ -22,8 +22,8 @@ const TIPS = [
   "Ship something small this week and post about it. Recruiters notice builders.",
 ];
 
-function SidebarCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-2xl bg-white/[0.07] p-4 ring-1 ring-white/10 ${className}`}>{children}</section>;
+function SidebarCard({ children }: { children: React.ReactNode }) {
+  return <section className="rounded-2xl bg-white/[0.07] p-4 ring-1 ring-white/10">{children}</section>;
 }
 
 async function DailyGoal() {
@@ -57,6 +57,12 @@ async function DailyGoal() {
           {m.strong} strong matches <span aria-hidden="true">→</span>
         </Link>
       )}
+      <div className="mt-4 border-t border-white/10 pt-4">
+        <h2 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-spark">
+          <span aria-hidden="true">✨</span> Spark of the day
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed">{TIPS[todayIndex() % TIPS.length]}</p>
+      </div>
     </SidebarCard>
   );
 }
@@ -66,26 +72,10 @@ function todayIndex(): number {
   return Math.floor((Date.now() + 5.5 * 3_600_000) / 86_400_000);
 }
 
-function SparkTip({ day }: { day: number }) {
-  return (
-    <SidebarCard className="bg-gradient-to-br from-spark/20 to-transparent">
-      <h2 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-spark">
-        <span aria-hidden="true">✨</span> Spark of the day
-      </h2>
-      <p className="mt-2 text-sm leading-relaxed">{TIPS[day % TIPS.length]}</p>
-    </SidebarCard>
-  );
-}
-
-// Live cards read the clock and the database, so they render per request inside Suspense
+// The card reads the clock and the database, so it renders per request inside Suspense
 async function LiveCards() {
   await connection();
-  return (
-    <>
-      <DailyGoal />
-      <SparkTip day={todayIndex()} />
-    </>
-  );
+  return <DailyGoal />;
 }
 
 export function SidebarCards() {

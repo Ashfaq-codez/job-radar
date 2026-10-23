@@ -15,12 +15,20 @@ export function GoogleSignIn({ label = "Continue with Google" }: { label?: strin
         const res = await authClient.signIn.social({ provider: "google", callbackURL: "/", errorCallbackURL: "/sign-in" });
         if (res.error) setPending(false);
       }}
-      className="btn-gradient inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
+      className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl btn-gradient pl-2 pr-5 text-base font-semibold shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
     >
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4" fill="currentColor">
-        <path d="M21.35 11.1H12v2.98h5.35c-.23 1.4-1.66 4.1-5.35 4.1-3.22 0-5.85-2.67-5.85-5.96S8.78 6.26 12 6.26c1.83 0 3.06.78 3.76 1.45l2.56-2.47C16.68 3.7 14.56 2.8 12 2.8 6.92 2.8 2.8 6.92 2.8 12s4.12 9.2 9.2 9.2c5.31 0 8.83-3.73 8.83-8.99 0-.6-.07-1.06-.15-1.51z" />
-      </svg>
-      {pending ? "Opening Google…" : label}
+      {!pending && (
+        <span aria-hidden="true" className="grid size-7 place-items-center rounded-full bg-surface">
+          <svg viewBox="0 0 48 48" className="size-4">
+            <path fill="var(--g-red)" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.9 6.2C12.5 13.6 17.8 9.5 24 9.5z" />
+            <path fill="var(--g-blue)" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z" />
+            <path fill="var(--g-yellow)" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.2C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.9-6.2z" />
+            <path fill="var(--g-green)" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.2C6.6 42.6 14.6 48 24 48z" />
+          </svg>
+        </span>
+      )}
+      {pending && <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />}
+      {pending ? "Redirecting to Google…" : label}
     </button>
   );
 }
