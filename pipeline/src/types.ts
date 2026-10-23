@@ -1,4 +1,4 @@
-export type Source = "greenhouse" | "lever" | "ashby";
+export type Source = "greenhouse" | "lever" | "ashby" | "workday" | "careers";
 
 // One job in OUR shape. Every source gets converted into this.
 export interface Job {
@@ -10,6 +10,7 @@ export interface Job {
   isRemote: boolean;
   url: string;
   description: string;     // plain text, used for scoring
+  descriptionHtml: string; // sanitized HTML, shown in the dashboard
   postedAt: string | null; // ISO date, or null if the source doesn't say
 }
 

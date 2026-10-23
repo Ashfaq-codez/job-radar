@@ -1,105 +1,172 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { connection } from "next/server";
-import { getJobs, getSummary, TABS, type Tab } from "@/lib/jobs";
-import { JobRow } from "./components/job-row";
+import { getBoard, getInsights, getOverview, getTopMatches } from "@/lib/jobs";
+import { prettyCompany, scoreColor, timeAgo } from "@/lib/format";
+import { BarList, ColumnChart } from "./components/charts";
+import { JobCard } from "./components/job-card";
+import { Empty, StatusPill } from "./components/ui";
+import { CompanyLogo } from "./components/company-logo";
 
-type SearchParams = Promise<{ tab?: string; strong?: string }>;
-
-const TAB_LABELS: Record<Tab, string> = {
-  review: "To review",
-  applied: "Applied",
-  archived: "Archived",
-};
-
-// URL values are user input. hasOwn avoids tricks like ?tab=constructor
-function isTab(value: string | undefined): value is Tab {
-  return value !== undefined && Object.hasOwn(TABS, value);
+function HeroStat({ label, value, href }: { label: string; value: number; href: string }) {
+  return (
+    <Link href={href} className="rounded-2xl bg-white/12 p-4 ring-1 ring-white/20 backdrop-blur-sm transition-colors hover:bg-white/20">
+      <dd className="text-3xl font-bold tracking-tight tabular-nums">{value}</dd>
+      <dt className="mt-1 text-xs font-medium text-white/80">{label}</dt>
+    </Link>
+  );
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
+// Greeting by the time of day in India, where the job hunt happens
+function greeting(): string {
+  const hour = Number(new Intl.DateTimeFormat("en", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Kolkata" }).format(new Date()));
+  return hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 }
 
-const EMPTY_TEXT: Record<Tab, string> = {
-  review: "Nothing left to review. Run the pipeline (npm run dev in the pipeline folder) to fetch new jobs.",
-  applied: "No applications yet. Mark a job as applied from To review and it moves here.",
-  archived: "Nothing archived. Jobs you mark as not for me or rejected end up here.",
-};
+function Card({ title, subtitle, children, action, tint = "bg-interview ring-interview-soft" }: { title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode; tint?: string }) {
+  return (
+    <section className="rounded-3xl border border-rule bg-surface p-5 shadow-card">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-bold">
+            <span aria-hidden="true" className={`size-2.5 rounded-full ring-4 ${tint}`} />
+            {title}
+          </h2>
+          {subtitle && <p className="mt-0.5 text-xs text-faint">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-async function Dashboard({ searchParams }: { searchParams: SearchParams }) {
+const dayFmt = new Intl.DateTimeFormat("en", { day: "numeric", month: "short", timeZone: "UTC" });
+
+async function OverviewContent() {
   await connection();
-  const params = await searchParams;
-  const tab: Tab = isTab(params.tab) ? params.tab : "review";
-  const strongOnly = params.strong === "1";
-
-  // Both queries run at the same time
-  const [summary, jobs] = await Promise.all([getSummary(), getJobs(tab, strongOnly)]);
-  const counts: Record<Tab, number> = {
-    review: summary.review,
-    applied: summary.applied,
-    archived: summary.archived,
-  };
+  const [o, top, board, ins] = await Promise.all([getOverview(), getTopMatches(6), getBoard(), getInsights()]);
+  const inProgress = board.filter((j) => j.status !== "rejected" && j.status !== "saved").slice(0, 5);
+  const newThisWeek = ins.perDay.slice(-7).reduce((s, d) => s + d.n, 0);
 
   return (
     <>
-      <p className="mt-3 max-w-prose text-lg text-muted">
-        {summary.strong > 0
-          ? `${plural(summary.strong, "strong match", "strong matches")} waiting.`
-          : "No strong matches right now."}{" "}
-        {plural(summary.applied, "application", "applications")} in progress.
-      </p>
-
-      <nav
-        aria-label="Job lists"
-        className="mt-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b border-rule"
-      >
-        <ul className="flex gap-6">
-          {(Object.keys(TABS) as Tab[]).map((t) => (
-            <li key={t}>
-              <Link
-                href={{ query: { tab: t } }}
-                aria-current={t === tab ? "page" : undefined}
-                className={`-mb-px inline-block border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${
-                  t === tab ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
-                }`}
-              >
-                {TAB_LABELS[t]} <span className="ml-1 tabular-nums text-muted">{counts[t]}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        <Link
-          href={{ query: strongOnly ? { tab } : { tab, strong: "1" } }}
-          className="pb-3 text-sm font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          {strongOnly ? "Show all matches" : "Show strong matches only"}
-        </Link>
-      </nav>
-
-      {jobs.length === 0 ? (
-        <p className="mt-10 max-w-prose text-muted">
-          {strongOnly ? "No strong matches here. Show all matches to see the rest." : EMPTY_TEXT[tab]}
+      <section className="hero-gradient relative overflow-hidden rounded-3xl p-6 text-white shadow-lift sm:p-8">
+        <p className="text-sm font-medium text-white/75">{greeting()} <span className="wave">👋</span></p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
+          {o.newToday > 0 ? `${o.newToday} new roles landed today` : "Let’s find your next role"}
+        </h1>
+        <p className="mt-2 max-w-xl text-sm text-white/80">
+          {o.strong > 0
+            ? `${o.strong} strong matches are waiting. Every application is a step closer.`
+            : "Every application is a step closer. Keep the streak going."}
         </p>
-      ) : (
-        <ol className="divide-y divide-rule">
-          {jobs.map((job) => (
-            <JobRow key={job.id} job={job} />
-          ))}
-        </ol>
-      )}
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Link href="/jobs?score=80" className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-accent shadow-card transition-transform hover:-translate-y-0.5">
+            Review strong matches →
+          </Link>
+          <Link href="/jobs" className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-white/40 transition-colors hover:bg-white/10">
+            Browse all
+          </Link>
+        </div>
+        <dl className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <HeroStat href="/jobs?posted=1" label="New today" value={o.newToday} />
+          <HeroStat href="/jobs?score=80" label="Strong matches" value={o.strong} />
+          <HeroStat href="/jobs" label="To review" value={o.toReview} />
+          <HeroStat href="/applied" label={`Active · ${o.interviewing} interviewing`} value={o.active} />
+        </dl>
+      </section>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <Card tint="bg-interview ring-interview-soft" title="New roles per day" subtitle={`${newThisWeek} in the last 7 days`}>
+          <ColumnChart
+            data={ins.perDay.map((d) => ({ key: d.day, n: d.n }))}
+            label={(day, i) => (i % 3 === 1 || i === 13 ? dayFmt.format(new Date(day)) : null)}
+            tip={(d) => `${dayFmt.format(new Date(d.key))}: ${d.n} roles`}
+          />
+        </Card>
+        <Card tint="bg-offer ring-offer-soft" title="How well roles fit" subtitle={`${ins.scoredJobs} scored roles, by fit score`}>
+          <ColumnChart
+            data={ins.scores.map((s) => ({ key: String(s.from), n: s.n }))}
+            label={(from) => from}
+            tip={(d) => `${d.key}–${Number(d.key) + 9}: ${d.n} roles`}
+            color={(from) => scoreColor(Number(from) + 5).text}
+          />
+        </Card>
+        <Card tint="bg-applied ring-applied-soft" title="Top hiring companies" subtitle="Open roles waiting for review">
+          {ins.companies.length > 0 ? (
+            <BarList
+              data={ins.companies.map((c) => ({ label: prettyCompany(c.company), n: c.n, href: `/jobs?q=${encodeURIComponent(c.company)}` }))}
+              tip={(n) => `${n} open roles`}
+            />
+          ) : (
+            <p className="text-sm text-muted">No open roles yet.</p>
+          )}
+        </Card>
+        <Card tint="bg-rejected ring-rejected-soft" title="Skills you’re missing most" subtitle="How many scored roles flag each gap">
+          {ins.skills.length > 0 ? (
+            <BarList data={ins.skills.map((s) => ({ label: s.skill, n: s.n }))} tip={(n) => `Flagged in ${n} roles`} />
+          ) : (
+            <p className="text-sm text-muted">Appears once roles are scored.</p>
+          )}
+        </Card>
+      </div>
+
+      <div className="mt-10 grid gap-8 xl:grid-cols-[1fr_20rem]">
+        <section aria-labelledby="top-heading">
+          <div className="mb-3 flex items-baseline justify-between gap-4">
+            <h2 id="top-heading" className="text-sm font-medium">Top matches</h2>
+            <Link href="/jobs" className="text-sm text-accent hover:underline">View all {o.toReview} →</Link>
+          </div>
+          {top.length > 0 ? (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {top.map((job) => (
+                <li key={job.id}><JobCard job={job} href={`/jobs?job=${encodeURIComponent(job.id)}`} /></li>
+              ))}
+            </ul>
+          ) : (
+            <Empty title="No scored roles yet">Run the pipeline to fetch and score jobs.</Empty>
+          )}
+        </section>
+
+        <section aria-labelledby="progress-heading">
+          <div className="mb-3 flex items-baseline justify-between gap-4">
+            <h2 id="progress-heading" className="text-sm font-medium">In progress</h2>
+            <Link href="/applied" className="text-sm text-accent hover:underline">Board →</Link>
+          </div>
+          {inProgress.length > 0 ? (
+            <ul className="divide-y divide-rule rounded-2xl border border-rule bg-surface shadow-card">
+              {inProgress.map((job) => (
+                <li key={job.id}>
+                  <Link href={`/applied?job=${encodeURIComponent(job.id)}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle/60">
+                    <CompanyLogo company={job.company} url={job.url} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{job.title}</p>
+                      <p className="mt-1 flex items-center gap-2 text-xs text-muted">
+                        <StatusPill status={job.status} />
+                        <span className="truncate">{prettyCompany(job.company)}</span>
+                        <span className="ml-auto shrink-0 text-faint">{timeAgo(job.status_changed_at)}</span>
+                      </p>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Empty>Apply to a role and it shows up here.</Empty>
+          )}
+        </section>
+      </div>
     </>
   );
 }
 
-export default function Page({ searchParams }: { searchParams: SearchParams }) {
+export default function OverviewPage() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-8 sm:py-14">
-      <h1 className="font-display text-5xl font-bold tracking-tight sm:text-6xl">job-radar</h1>
-      <Suspense fallback={<p className="mt-3 text-lg text-muted">Loading your matches…</p>}>
-        <Dashboard searchParams={searchParams} />
+    <>
+      <Suspense fallback={<div className="hero-gradient h-80 animate-pulse rounded-3xl" />}>
+        <OverviewContent />
       </Suspense>
-    </main>
+    </>
   );
 }

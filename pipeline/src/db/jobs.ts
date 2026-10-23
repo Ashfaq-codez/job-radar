@@ -12,12 +12,12 @@ export async function upsertJobs(
 
   const rows = await sql`
     INSERT INTO jobs (id, source, company, title, location, is_remote, url, posted_at,
-                      description, category, employment, seniority)
+                      description, description_html, category, employment, seniority)
     SELECT id, source, company, title, location, "isRemote", url, "postedAt",
-           description, category, employment, seniority
+           description, "descriptionHtml", category, employment, seniority
     FROM jsonb_to_recordset(${JSON.stringify(rowsIn)}::jsonb) AS j(
       id text, source text, company text, title text, location text,
-      "isRemote" boolean, url text, "postedAt" timestamptz, description text,
+      "isRemote" boolean, url text, "postedAt" timestamptz, description text, "descriptionHtml" text,
       category text, employment text, seniority text
     )
     ON CONFLICT (id) DO UPDATE SET
@@ -26,6 +26,7 @@ export async function upsertJobs(
       is_remote    = EXCLUDED.is_remote,
       url          = EXCLUDED.url,
       description  = EXCLUDED.description,
+      description_html = EXCLUDED.description_html,
       category     = EXCLUDED.category,
       employment   = EXCLUDED.employment,
       seniority    = EXCLUDED.seniority,

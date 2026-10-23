@@ -40,11 +40,11 @@ export async function saveCheck(
   `;
 }
 
-// The boards the daily pipeline should fetch
+// The boards the daily pipeline should fetch: everything with India jobs, plus every company you added
 export async function getActiveCompanies(): Promise<CompanyTarget[]> {
   const rows = await sql`
     SELECT source, slug FROM companies
-    WHERE india_jobs > 0
+    WHERE india_jobs > 0 OR added_by = 'dashboard'
     ORDER BY india_jobs DESC
   `;
   return rows as CompanyTarget[];

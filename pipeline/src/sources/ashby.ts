@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cleanHtml } from "../lib/text.js";
 import { fetchJson } from "../lib/http.js";
 import type { Job } from "../types.js";
 
@@ -7,6 +8,7 @@ const AshbyJobSchema = z.object({
   title: z.string(),
   location: z.string(),
   descriptionPlain: z.string().nullish(),
+  descriptionHtml: z.string().nullish(),
   isRemote: z.boolean().nullish(),
   jobUrl: z.string(),
   publishedAt: z.string().nullish(),
@@ -29,6 +31,7 @@ export async function fetchAshbyJobs(company: string): Promise<Job[]> {
     isRemote: j.isRemote ?? false,
     url: j.jobUrl,
     description: j.descriptionPlain ?? "",
+    descriptionHtml: cleanHtml(j.descriptionHtml ?? ""),
     postedAt: j.publishedAt ?? null,
   }));
 }

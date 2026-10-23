@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { fetchJson } from "../lib/http.js";
-import { htmlToText } from "../lib/text.js";
+import { cleanHtml, htmlToText } from "../lib/text.js";
 import type { Job } from "../types.js";
 
 // What Greenhouse sends. Zod checks this at RUNTIME.
@@ -36,6 +36,7 @@ export async function fetchGreenhouseJobs(
     isRemote: /remote/i.test(j.location.name),
     url: j.absolute_url,
     description: htmlToText(j.content ?? ""),
+    descriptionHtml: cleanHtml(j.content ?? ""),
     postedAt: j.first_published ?? j.updated_at,
   }));
 }

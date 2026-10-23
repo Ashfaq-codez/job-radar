@@ -4,25 +4,27 @@
   "type": "module",
   "description": "",
   "main": "index.js",
-    "scripts": {
+  "scripts": {
     "dev": "tsx --env-file=.env src/index.ts",
     "typecheck": "tsc --noEmit",
     "discover": "tsx --env-file=.env src/discover/run.ts",
-    "test": "tsx --test src/classify.test.ts",
-    "reclassify": "tsx --env-file-if-exists=.env src/scripts/reclassify.ts"
+    "test": "tsx --test src/classify.test.ts src/sources/careers.test.ts src/sources/workday.test.ts",
+    "reclassify": "tsx --env-file-if-exists=.env src/scripts/reclassify.ts",
+    "backfill-html": "tsx --env-file-if-exists=.env src/scripts/backfill-html.ts"
   },
-  
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^22.20.5",
+    "@types/sanitize-html": "^2.16.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
     "openai": "^7.41.0",
+    "sanitize-html": "^2.17.0",
     "zod": "^4.6.7"
   }
 }

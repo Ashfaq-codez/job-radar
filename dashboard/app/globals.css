@@ -1,46 +1,239 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f4f6f5;
-  --surface: #ffffff;
-  --ink: #16202a;
-  --muted: #5e6a75;
-  --rule: #d9dfdc;
-  --strong: #0e7c5a;
-  --mid: #a86a12;
-  --low: #8c96a0;
-  --accent: #2443c7;
-}
+  color-scheme: light;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #12171c;
-    --surface: #1a2128;
-    --ink: #e6ebef;
-    --muted: #93a0ab;
-    --rule: #2a333b;
-    --strong: #3cc796;
-    --mid: #e2a33b;
-    --low: #6b7782;
-    --accent: #7c93ff;
-  }
+  /* Surfaces: soft green-tinted off-white page, white cards */
+  --canvas: #f7faf7;
+  --surface: #ffffff;
+  --subtle: #eff5f0;   /* hover rows, input fills, tracks */
+  --rule: #e1ebe3;
+
+  /* Text: deep forest ink */
+  --ink: #0f2a1f;
+  --muted: #4b6358;
+  --faint: #94a89d;
+
+  /* Accent: emerald */
+  --accent: #047857;
+  --accent-soft: #dcfce7;
+
+  /* Sidebar: deep emerald with light text and a lime spark */
+  --side: #064e3b;
+  --side-deep: #052e22;
+  --side-ink: #ecfdf5;
+  --side-muted: #a7f3d0;
+  --spark: #bef264;
+
+  /* Highlight tints for tiles (names kept so components don't change) */
+  --lavender: #ecfccb;  /* lime */
+  --sky: #e0f2fe;
+  --mint: #d1fae5;
+  --butter: #fef3c7;
+  --peach: #ffedd5;
+  --cyan: #ccfbf1;      /* teal */
+
+  /* Status: deep tone on its tint, all ≥ 4.5:1 */
+  --saved: #b45309;      --saved-soft: #fef3c7;
+  --applied: #0369a1;    --applied-soft: #e0f2fe;
+  --interview: #6d28d9;  --interview-soft: #ede9fe;
+  --offer: #15803d;      --offer-soft: #dcfce7;
+  --rejected: #b91c1c;   --rejected-soft: #fee2e2;
+
+  --shadow-card: 0 1px 2px rgb(15 42 31 / 0.04), 0 4px 14px -6px rgb(4 120 87 / 0.12);
+  --shadow-lift: 0 2px 6px rgb(15 42 31 / 0.05), 0 18px 40px -14px rgb(4 120 87 / 0.30);
 }
 
 @theme inline {
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-rule: var(--rule);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
-  --color-rule: var(--rule);
-  --color-strong: var(--strong);
-  --color-mid: var(--mid);
-  --color-low: var(--low);
+  --color-faint: var(--faint);
   --color-accent: var(--accent);
-  --font-sans: var(--font-hanken);
-  --font-display: var(--font-barlow);
+  --color-accent-soft: var(--accent-soft);
+  --color-lavender: var(--lavender);
+  --color-mint: var(--mint);
+  --color-butter: var(--butter);
+  --color-sky: var(--sky);
+  --color-peach: var(--peach);
+  --color-cyan: var(--cyan);
+  --color-side: var(--side);
+  --color-side-ink: var(--side-ink);
+  --color-side-muted: var(--side-muted);
+  --color-spark: var(--spark);
+  --color-saved: var(--saved);
+  --color-saved-soft: var(--saved-soft);
+  --color-applied: var(--applied);
+  --color-applied-soft: var(--applied-soft);
+  --color-interview: var(--interview);
+  --color-interview-soft: var(--interview-soft);
+  --color-offer: var(--offer);
+  --color-offer-soft: var(--offer-soft);
+  --color-rejected: var(--rejected);
+  --color-rejected-soft: var(--rejected-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-lift: var(--shadow-lift);
+  --font-sans: var(--font-jakarta);
 }
 
+/* Reserve the scrollbar's space so locking scroll under the panel doesn't shift the page */
+html { scrollbar-gutter: stable; }
+
 body {
-  background: var(--canvas);
+  background-color: var(--canvas);
   color: var(--ink);
 }
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* Primary buttons: emerald → lime-olive. Both ends keep white text at ~5:1 contrast. */
+.btn-gradient {
+  background-image: linear-gradient(135deg, #047857 0%, #4d7c0f 100%);
+  color: #fff;
+  box-shadow: 0 2px 6px -1px rgb(4 120 87 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.2);
+  transition: filter 150ms, box-shadow 150ms, transform 150ms;
+}
+.btn-gradient:hover {
+  filter: brightness(1.08) saturate(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -6px rgb(4 120 87 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.2);
+}
+
+/* Overview hero: deep emerald with lime and amber glows */
+.hero-gradient {
+  background:
+    radial-gradient(28rem 16rem at 85% 0%, rgb(163 230 53 / 0.55), transparent 70%),
+    radial-gradient(24rem 14rem at 10% 110%, rgb(251 191 36 / 0.40), transparent 70%),
+    linear-gradient(120deg, #064e3b 0%, #047857 55%, #3f6212 100%);
+}
+
+@keyframes slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+.animate-slide-in { animation: slide-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-fade-in { animation: fade-in 150ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in, .animate-fade-in { animation: none; }
+}
+
+/* Job descriptions: HTML from the job board, styled like a readable article */
+.job-prose {
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.job-prose > * + * { margin-top: 0.75rem; }
+.job-prose :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: 1.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.job-prose > :first-child { margin-top: 0; }
+.job-prose :is(ul, ol) { padding-left: 1.25rem; }
+.job-prose ul { list-style: disc; }
+.job-prose ol { list-style: decimal; }
+.job-prose li + li { margin-top: 0.35rem; }
+.job-prose li::marker { color: var(--accent); }
+.job-prose li > p { margin: 0; }
+.job-prose :is(strong, b) { font-weight: 600; }
+.job-prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.job-prose blockquote { border-left: 2px solid var(--rule); padding-left: 0.75rem; color: var(--muted); }
+.job-prose hr { border-color: var(--rule); margin: 1.25rem 0; }
+.job-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.job-prose :is(pre, img) { max-width: 100%; overflow-x: auto; }
+.job-prose :is(th, td) { border: 1px solid var(--rule); padding: 0.35rem 0.5rem; text-align: left; }
+
+/* Quiet scrollbars: thin, faint thumb, no track */
+.scroll-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule) transparent;
+}
+.scroll-quiet:hover { scrollbar-color: var(--faint) transparent; }
+.scroll-quiet::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-quiet::-webkit-scrollbar-track { background: transparent; }
+.scroll-quiet::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 999px; }
+.scroll-quiet:hover::-webkit-scrollbar-thumb { background: var(--faint); }
+
+/* Page backdrop: soft emerald / lime / amber glows fixed behind everything, so white cards float on colour */
+body {
+  background:
+    radial-gradient(40rem 28rem at 0% 0%, rgb(16 185 129 / 0.14), transparent 70%),
+    radial-gradient(36rem 26rem at 100% 0%, rgb(163 230 53 / 0.16), transparent 70%),
+    radial-gradient(40rem 30rem at 60% 100%, rgb(251 191 36 / 0.10), transparent 70%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+/* Sidebar: deep emerald with a lime glow in the corner */
+.sidebar-dark {
+  background:
+    radial-gradient(18rem 14rem at 0% 0%, rgb(163 230 53 / 0.18), transparent 70%),
+    linear-gradient(180deg, var(--side) 0%, var(--side-deep) 100%);
+  color: var(--side-ink);
+}
+
+/* Headings in the brand gradient */
+.text-gradient {
+  background-image: linear-gradient(120deg, #065f46 0%, #047857 45%, #4d7c0f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Confetti from celebrate() */
+.confetti-bit {
+  position: fixed;
+  z-index: 100;
+  width: 7px;
+  height: 10px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: confetti 900ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+@keyframes confetti {
+  to {
+    transform: translate(var(--dx), calc(var(--dy) + 60px)) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+
+/* Playful hover: a springy pop with a tiny tilt */
+.pop {
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms, background-color 150ms;
+}
+.pop:hover { transform: translateY(-2px) scale(1.04) rotate(-1deg); }
+.pop:nth-child(even):hover { transform: translateY(-2px) scale(1.04) rotate(1deg); }
+.pop:active { transform: scale(0.96); }
+
+/* The hero's wave emoji says hi once */
+@keyframes wave {
+  0%, 60%, 100% { transform: rotate(0); }
+  10%, 30% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+}
+.wave { display: inline-block; transform-origin: 70% 70%; animation: wave 1.8s ease-in-out 0.4s 2; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop, .pop:hover, .pop:nth-child(even):hover, .pop:active { transform: none; }
+  .wave { animation: none; }
+}
+
+/* On the dark sidebar the quiet scrollbar uses translucent white */
+.scroll-dark { scrollbar-color: rgb(255 255 255 / 0.15) transparent; }
+.scroll-dark:hover { scrollbar-color: rgb(255 255 255 / 0.3) transparent; }
+.scroll-dark::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.15); }
+.scroll-dark:hover::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 0.3); }
