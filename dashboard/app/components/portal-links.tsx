@@ -1,5 +1,6 @@
 import { logoUrl } from "@/lib/logos";
 import { PORTALS, type Portal } from "@/lib/portals";
+import { Dropdown } from "./dropdown";
 
 // Each pill gets its own pastel, cycling through the theme's tints
 const TINTS = ["bg-lavender", "bg-sky", "bg-mint", "bg-butter", "bg-peach", "bg-cyan"];
@@ -50,7 +51,7 @@ export function PortalSection() {
 // Mobile top bar and tablet icon rail: a native disclosure, no client JS
 export function PortalDisclosure() {
   return (
-    <details className="group/portals md:relative lg:hidden">
+    <Dropdown className="group/portals md:relative lg:hidden">
       <summary
         title="Job portals"
         className="flex cursor-pointer list-none items-center justify-center rounded-xl p-2.5 text-side-muted transition-colors hover:bg-white/10 hover:text-side-ink focus-visible:outline-2 focus-visible:outline-spark group-open/portals:bg-white group-open/portals:text-accent [&::-webkit-details-marker]:hidden"
@@ -67,6 +68,6 @@ export function PortalDisclosure() {
           </div>
         ))}
       </div>
-    </details>
+    </Dropdown>
   );
 }
