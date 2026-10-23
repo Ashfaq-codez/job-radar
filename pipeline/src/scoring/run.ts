@@ -1,7 +1,7 @@
 import { getUnscoredJobs, saveScore, getTopMatches } from "../db/jobs.js";
 import { scoreJob, FitSchema } from "./score.js";
 
-const MAX_PER_RUN = 40; // spending cap per run (~$0.03 on nano)
+const MAX_PER_RUN = 300; // spending cap per run (~$0.03 on nano)
 const BATCH_SIZE = 5;   // jobs scored at the same time
 
 export async function scoreNewJobs(): Promise<void> {
